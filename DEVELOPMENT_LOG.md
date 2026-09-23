@@ -47,3 +47,37 @@ V0.2: implement meaningful movement among Close/Mid/Far, then distinct archetype
 ## 2026-09-23 — Version 0.2 milestone
 
 Implemented simultaneous range movement, three playable fighter definitions and move sets, signature cooldowns, range-aware personalities/difficulty, character/opponent selection, and the original neon rooftop art direction. Retained the pure resolver / Phaser scene / DOM UI separation. Expanded regression tests to 17, including 2,187 fighter/range/action combinations and 270 seeded full matches. A balance harness found Nyx weak at Mid; improved Needle ray’s speed/efficiency, Prism lance, and the zoner’s spacing weights. Preparing the v1.0 release candidate with optional procedural audio, reduced motion, documentation and a reproducible upload package.
+
+## 2026-09-23 — Neon Circuit 1.0 release
+
+### Delivered scope
+
+Three selectable fighters and rivals, three CPU read levels, nine actions, meaningful range movement, distinct signatures with public cooldowns, original colorful rooftop/portraits/silhouettes, complete roster → combat → results → rematch flow, optional synthesized effects audio and a reduced-motion toggle. One-round single-player duels remain the focus; no campaign, multiplayer, accounts or saves were added.
+
+### Decisions and fixes
+
+- Moved reusable fighter/move data to `src/game/data.ts`; retained pure snapshot resolution and the Phaser/DOM separation.
+- Movement commitments add before attack range checks; equal-speed hits trade. Rook’s knockback occurs only after an unguarded hit. Added exhaustive side-swap symmetry coverage.
+- Signature cooldowns last two intervening turns and apply even on a miss. Display both fighters’ cooldowns. Card reach hints include Vector’s own step, without predicting the rival’s secret action.
+- Original procedural visual work avoids external asset dependencies. Added distinct armored/scarf/cloak silhouettes, inline SVG portraits, sunset/city depth and per-action colors.
+- Sound starts off, uses a user-gesture-created Web Audio context, and disconnects each finished tone. No audio samples or new package dependencies.
+- Reduced motion honors the OS preference at startup. Removes idle bobbing, lunges, particles, shake and CSS transitions; retains readable result feedback.
+- Added a dependency-free Node ZIP packager with relative paths and runtime license notices. `npm run package` runs tests, build and packaging; it overwrites the old ZIP to prevent stale assets.
+
+### Balance pass
+
+The first 900-match CPU sweep showed Nyx winning only about 20–30% against other archetypes. She was approaching despite her Mid specialization. Improved Needle ray (14 damage / 12 stamina / speed 9), Prism lance (24 damage / speed 7), and zoner positioning weights. Retained 90 health and no Close-range light. The release sweep completed all 900 matches with mean pairing lengths of 13.0–20.4 exchanges. Off-diagonal win samples ranged 44–62%; these finite CPU samples are not human competitive-balance guarantees.
+
+### Release verification
+
+- 17 tests: all 2,187 fighter/range/action combinations; 729 mirrored action/fighter comparisons; defenses, resources, movement ordering, range, all signatures, cooldown expiry, victory/defeat/draw, illegal input, history bounds and adaptive CPU.
+- 270 deterministic matches across all fighter pairings and difficulties terminate within the test bound.
+- `npm run balance`: another 900 complete deterministic CPU matches with reported win/turn statistics.
+- Browser checks: roster choices for Vector/Rook/Nyx; opponent and difficulty changes; movement via buttons and keyboard; signature availability and two-turn cooldown expiry; reduced-motion and sound toggle state; help and Escape; new defeat screen and rematch reset.
+- Strict TypeScript and production build pass. No browser console errors observed in checked sessions. Production bundle retains Phaser’s non-fatal chunk-size warning (~1.25 MB JavaScript before compression).
+
+### Remaining limits / next work
+
+Human playtesting is still needed, especially Needle ray’s Mid pressure, repeated defense and recovering at Far. Browser checks use the available Chromium-based environment; Safari/Firefox and the actual hosted itch.io iframe need release-owner testing. Desktop is the supported target. Short displays scroll. Audio is effects-only, with no music; preferences are session-only. No external account access or publishing occurred. The next milestone should be tuning from human matches before expanding feature scope.
+
+Final release checks: browser victory after 14 exchanges and defeat after 8; rejected unaffordable keyboard light at 2 stamina without advancing the turn. The final rebuilt bundle displays both signature states and correctly cancels a pending signature reveal on R restart, then resolves only the new match’s first exchange. No console warnings/errors in that session. `npm run package` completed; `unzip -t framebreak-itch.zip` passed all four entries. Development server still serves HTTP 200. Git diff whitespace check passed.

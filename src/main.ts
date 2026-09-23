@@ -7,6 +7,7 @@ import {
   newMatch,
   resolveTurn,
   unavailableReason,
+  shiftDistance,
 } from "./game/combat";
 import {
   ACTIONS,
@@ -30,7 +31,7 @@ const card = (action: Action) =>
 app.innerHTML = `
 <header><a class="brand" href="#" aria-label="FRAMEBREAK roster">FRAME<span>BREAK</span><i>ϟ</i></a><div class="header-right"><span class="edition">NEON CIRCUIT <b>1.0</b></span><button id="sound" class="small" aria-pressed="false">SOUND OFF</button><button id="motion" class="small" aria-pressed="false">REDUCE MOTION</button><button id="help" class="small">FIELD MANUAL ↗</button></div></header>
 <main><div class="intro"><div><div class="eyebrow"><span class="live-dot"></span> SIMULTANEOUS TACTICAL FIGHTING</div><h1>Break the <em>pattern.</em></h1></div><div class="intro-aside"><span>THE ROOFTOPS ARE YOURS.</span><p>Read the distance. Read the rival.</p></div></div>
-<section id="combat" aria-label="Combat arena"><div class="arena-top"><span>◈ SKYLINE 09 <i>/</i> AFTER HOURS</span><span id="turn">EXCHANGE 01</span></div><div class="fighters-hud">${[0, 1].map((i) => `<div class="fighter-hud ${i ? "enemy" : ""}"><div class="hud-portrait" id="portrait-${i}"></div><div class="hud-data"><div class="fighter-name"><div><small id="role-${i}"></small><strong id="fighter-${i}"></strong></div><span id="hp${i}"></span></div><div class="bar health"><div id="health${i}"></div></div><div class="stamina-line"><span>STAMINA</span><span id="sp${i}"></span></div><div class="bar stamina"><div id="stamina${i}"></div></div></div></div>`).join("")}<div class="versus">VS</div></div>
+<section id="combat" aria-label="Combat arena"><div class="arena-top"><span>◈ SKYLINE 09 <i>/</i> AFTER HOURS</span><span id="turn">EXCHANGE 01</span></div><div class="fighters-hud">${[0, 1].map((i) => `<div class="fighter-hud ${i ? "enemy" : ""}"><div class="hud-portrait" id="portrait-${i}"></div><div class="hud-data"><div class="fighter-name"><div><small id="role-${i}"></small><strong id="fighter-${i}"></strong></div><span id="hp${i}"></span></div><div class="bar health"><div id="health${i}"></div></div><div class="stamina-line"><span>STAMINA</span><span id="sp${i}"></span></div><div class="bar stamina"><div id="stamina${i}"></div></div><div id="signature-${i}" class="signature-state"></div></div></div>`).join("")}<div class="versus">VS</div></div>
 <div id="arena"><div id="reveal" class="reveal" aria-live="polite"></div></div><div class="range-strip"><span>STRIKE DISTANCE</span><div id="distance"></div><span id="range-hint"></span></div></section>
 <section class="decision"><div class="section-heading"><div><span class="eyebrow">YOUR MOVE</span><h2 id="phase">Choose your next read</h2></div><span id="cpu-status"><i class="live-dot"></i> RIVAL LOCKED IN</span></div><div class="action-grid">${ACTIONS.slice(0, 7).map(card).join("")}</div><div class="footwork"><span><b>CONTROL THE GAP</b><small>Footwork resolves before attacks.</small></span>${ACTIONS.slice(
   7,
@@ -100,6 +101,8 @@ function update() {
     el(`sp${i}`).textContent = `${f.stamina} / ${def.maxStamina}`;
     el(`health${i}`).style.width = `${(f.health / def.maxHealth) * 100}%`;
     el(`stamina${i}`).style.width = `${(f.stamina / def.maxStamina) * 100}%`;
+    el(`signature-${i}`).textContent =
+      `${getMove("special", f.id).name} / ${f.specialCooldown ? `READY IN ${f.specialCooldown}T` : "READY"}`;
     el(`health${i}`).style.background = def.accent;
     el(`fighter-${i}`).textContent = def.name;
     el(`role-${i}`).textContent = i
@@ -140,7 +143,9 @@ function update() {
           ? "EVADE / LOSES TO GRAB"
           : "RECOVERY / VULNERABLE";
     el(`desc-${a}`).textContent = move.description;
-    const inRange = move.range.includes(state.distance) || !move.range.length;
+    const inRange =
+      move.range.includes(shiftDistance(state.distance, move.movement ?? 0)) ||
+      !move.range.length;
     el(`reach-${a}`).textContent =
       reason ??
       (move.range.length

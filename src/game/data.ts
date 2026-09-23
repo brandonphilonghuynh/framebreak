@@ -238,7 +238,13 @@ export const FIGHTERS: Record<FighterId, FighterDefinition> = {
     accent: "#ca9aff",
     personality: "zoner",
     moves: {
-      light: { name: "Needle ray", damage: 14, cost: 12, speed: 9, range: ["mid"] },
+      light: {
+        name: "Needle ray",
+        damage: 14,
+        cost: 12,
+        speed: 9,
+        range: ["mid"],
+      },
       heavy: { name: "Crescent cut", damage: 23, cost: 30, speed: 4, chip: 7 },
       grab: { name: "Phase snare", damage: 13, cost: 18 },
       recover: { recovery: 32 },

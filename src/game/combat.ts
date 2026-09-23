@@ -83,7 +83,7 @@ export function unavailableReason(
     return `Need ${cost(action, fighter)} stamina`;
   return null;
 }
-const shift = (distance: Distance, amount: number): Distance =>
+export const shiftDistance = (distance: Distance, amount: number): Distance =>
   DISTANCES[Math.max(0, Math.min(2, DISTANCES.indexOf(distance) + amount))];
 export function resolveTurn(
   before: Match,
@@ -113,7 +113,7 @@ export function resolveTurn(
   // Both movement commitments combine before either attack is checked for reach.
   // Opposite directions cancel, and two advances/retreats can shift two bands.
   const movement = moves.reduce((sum, m) => sum + (m.movement ?? 0), 0);
-  state.distance = shift(before.distance, movement);
+  state.distance = shiftDistance(before.distance, movement);
   const attackDistance = state.distance;
   if (moves.some((m) => m.movement))
     messages.push(
@@ -178,7 +178,7 @@ export function resolveTurn(
     if (hit > 0 && !blocked[target]) knockback += move.knockback ?? 0;
   });
   if (knockback) {
-    state.distance = shift(attackDistance, knockback);
+    state.distance = shiftDistance(attackDistance, knockback);
     messages.push(
       `Impact pushed the fighters to ${state.distance.toUpperCase()} range.`,
     );
@@ -268,13 +268,16 @@ export function chooseCpu(
   if (personality === "zoner") {
     weights.special += 3;
     weights.retreat += distance === "close" ? 10 : 0;
-    if (distance === "mid") { weights.light += 7; weights.advance = 0; }
+    if (distance === "mid") {
+      weights.light += 7;
+      weights.advance = 0;
+    }
   }
   for (const a of ACTIONS) {
     const move = getMove(a, cpu.id);
     if (
       move.range.length &&
-      !move.range.includes(shift(distance, move.movement ?? 0))
+      !move.range.includes(shiftDistance(distance, move.movement ?? 0))
     )
       weights[a] *= 0.06;
   }
@@ -288,7 +291,10 @@ export function chooseCpu(
   if (distance === "close") weights.advance = 0;
   // A retreat read can lure short attacks out of range; approach can catch recovery.
   weights.retreat += distance !== "far" ? count("light") * 0.7 : 0;
-  weights.advance += distance !== "close" && personality !== "zoner" ? count("recover") * 1.4 : 0;
+  weights.advance +=
+    distance !== "close" && personality !== "zoner"
+      ? count("recover") * 1.4
+      : 0;
   if (cpu.stamina > FIGHTERS[cpu.id].maxStamina - 15) weights.recover = 0.05;
   const available = ACTIONS.filter((a) => canUse(a, cpu));
   let ticket =

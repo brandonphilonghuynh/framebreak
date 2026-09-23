@@ -1,19 +1,21 @@
-# Asset provenance
+# Asset provenance — Neon Circuit 1.0
 
-All fighter silhouettes, arena geometry, effects and interface graphics in V0.1 are original procedural code created for FRAMEBREAK. No third-party artwork, audio, sprites, photos, or downloaded fonts are used. System Arial/Helvetica/monospace fonts are referenced, not distributed.
+All arena artwork, skyline geometry, sunset, neon signs, fighter silhouettes, visual effects, interface graphics and SVG portraits are original procedural code created for FRAMEBREAK. Optional sound effects are original Web Audio oscillator sequences. No downloaded media, sprites, photographs, audio samples or bundled fonts are used.
 
-## Libraries
+System Arial/Helvetica/monospace/sans-serif fonts are referenced, not distributed. The rooftop sign uses the character 夜 (night), rendered by the system font. No image-generation or external media service was used.
 
-- Phaser: MIT; license in `node_modules/phaser/LICENSE.md`.
-- eventemitter3 (Phaser dependency): MIT; license in `node_modules/eventemitter3/LICENSE`.
-- Vite and TypeScript are build tools; their packages retain their own license files.
+## Runtime libraries
 
-The production build includes `THIRD_PARTY_LICENSES.txt` with the licenses for shipped runtime libraries. Preserve that file when uploading.
+- Phaser: MIT; original license in `node_modules/phaser/LICENSE.md`.
+- eventemitter3 (Phaser dependency): MIT; original license in `node_modules/eventemitter3/LICENSE`.
+- Vite and TypeScript are build tools with their own package licenses.
 
-## Before adding assets
+`public/THIRD_PARTY_LICENSES.txt` preserves the shipped runtime libraries’ license notices. Vite copies it into the build; the upload packager includes it. Preserve this file when distributing the game.
 
-Record the asset’s name, creator, original source URL, exact license/version, download date, modifications and required attribution here. Store a copy of the license with the asset. Do not assume an image found online is free to distribute.
+## Future assets
 
-| Asset | Creator/source | License | Changes | Attribution |
+Before adding external media, record the asset name, creator, original source URL, exact license/version, download date, modifications and required attribution. Save a copy of its license with the asset. An online image is not automatically free to distribute.
+
+| Asset | Creator/source | License | Modifications | Attribution |
 | --- | --- | --- | --- | --- |
-| No third-party media in V0.1 | — | — | — | — |
+| No third-party media in 1.0 | — | — | — | — |

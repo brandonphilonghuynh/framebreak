@@ -49,6 +49,10 @@ export class CombatAudio {
       gain.connect(context.destination);
       oscillator.start(time);
       oscillator.stop(time + 0.22);
+      oscillator.onended = () => {
+        oscillator.disconnect();
+        gain.disconnect();
+      };
     });
   }
 }

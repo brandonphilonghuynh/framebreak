@@ -1057,3 +1057,11 @@ dialog h2 {
     margin-top: 15px;
   }
 }
+
+.signature-state {
+  font: 8px monospace;
+  letter-spacing: 0.5px;
+  color: #c3aee4;
+  margin-top: 6px;
+  text-transform: uppercase;
+}
