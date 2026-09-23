@@ -43,3 +43,7 @@ The browser interface uses semantic buttons and native dialogs. CPU commitment l
 ### Recommended next milestone
 
 V0.2: implement meaningful movement among Close/Mid/Far, then distinct archetypes/move sets and CPU personalities. First measure match lengths and action frequencies through human playtests; retain the existing resolver tests when tuning costs or speed.
+
+## 2026-09-23 — Version 0.2 milestone
+
+Implemented simultaneous range movement, three playable fighter definitions and move sets, signature cooldowns, range-aware personalities/difficulty, character/opponent selection, and the original neon rooftop art direction. Retained the pure resolver / Phaser scene / DOM UI separation. Expanded regression tests to 17, including 2,187 fighter/range/action combinations and 270 seeded full matches. A balance harness found Nyx weak at Mid; improved Needle ray’s speed/efficiency, Prism lance, and the zoner’s spacing weights. Preparing the v1.0 release candidate with optional procedural audio, reduced motion, documentation and a reproducible upload package.

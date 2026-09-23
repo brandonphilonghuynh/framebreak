@@ -1,109 +1,21 @@
-export type Action = "light" | "heavy" | "block" | "dodge" | "grab" | "recover";
-export type Distance = "close" | "mid" | "far";
-export interface Move {
-  name: string;
-  damage: number;
-  cost: number;
-  speed: number;
-  range: Distance[];
-  type: "strike" | "grab" | "defense" | "recovery";
-  description: string;
-  chip?: number;
-  guardCost?: number;
-  recovery?: number;
-  vulnerability?: number;
-}
-export const MOVES: Record<Action, Move> = {
-  light: {
-    name: "Light attack",
-    damage: 12,
-    cost: 15,
-    speed: 8,
-    range: ["close", "mid"],
-    type: "strike",
-    description: "Fast pressure. Interrupts heavy attacks.",
-  },
-  heavy: {
-    name: "Heavy attack",
-    damage: 25,
-    cost: 35,
-    speed: 3,
-    range: ["close", "mid"],
-    type: "strike",
-    chip: 8,
-    guardCost: 25,
-    description: "Breaks passive guards. Risky against light.",
-  },
-  block: {
-    name: "Block",
-    damage: 0,
-    cost: 0,
-    speed: 10,
-    range: [],
-    type: "defense",
-    description: "Stops light; heavy costs 25 guard stamina. Loses to grab.",
-  },
-  dodge: {
-    name: "Dodge",
-    damage: 0,
-    cost: 25,
-    speed: 10,
-    range: [],
-    type: "defense",
-    description: "Evades strikes. Repeated dodge costs +10, then +20.",
-  },
-  grab: {
-    name: "Grab",
-    damage: 15,
-    cost: 20,
-    speed: 5,
-    range: ["close"],
-    type: "grab",
-    description: "Catches blocks and dodges. Loses to light.",
-  },
-  recover: {
-    name: "Recover",
-    damage: 0,
-    cost: 0,
-    speed: 0,
-    range: [],
-    type: "recovery",
-    recovery: 30,
-    vulnerability: 1.4,
-    description: "Restore 30 stamina. Take 40% more damage.",
-  },
-};
-export interface FighterDefinition {
-  name: string;
-  maxHealth: number;
-  maxStamina: number;
-  moves: Action[];
-  color: number;
-  portrait?: string;
-  passive?: string;
-  personality?: string;
-}
-export const FIGHTERS: FighterDefinition[] = [
-  {
-    name: "Vector",
-    maxHealth: 100,
-    maxStamina: 100,
-    moves: Object.keys(MOVES) as Action[],
-    color: 0xa8f0cb,
-  },
-  {
-    name: "Rook",
-    maxHealth: 100,
-    maxStamina: 100,
-    moves: Object.keys(MOVES) as Action[],
-    color: 0xf4a078,
-    personality: "balanced",
-  },
-];
+import {
+  ACTIONS,
+  DISTANCES,
+  FIGHTERS,
+  getMove,
+  type Action,
+  type Distance,
+  type FighterId,
+  type Difficulty,
+} from "./data.ts";
+export { ACTIONS, DISTANCES, FIGHTERS, MOVES, getMove } from "./data.ts";
+export type { Action, Distance, FighterId, Difficulty, Move } from "./data.ts";
 export interface Fighter {
+  id: FighterId;
   health: number;
   stamina: number;
   history: Action[];
+  specialCooldown: number;
 }
 export interface Match {
   player: Fighter;
@@ -111,6 +23,7 @@ export interface Match {
   distance: Distance;
   turn: number;
   outcome: "victory" | "defeat" | "draw" | null;
+  difficulty: Difficulty;
 }
 export interface Resolution {
   state: Match;
@@ -118,14 +31,31 @@ export interface Resolution {
   damage: [number, number];
   staminaDelta: [number, number];
   actions: [Action, Action];
+  previousDistance: Distance;
+  attackDistance: Distance;
+  interrupted: boolean[];
+  dodged: boolean[];
+  blocked: boolean[];
 }
-export function newMatch(): Match {
+export function newMatch(
+  player: FighterId = "vector",
+  cpu: FighterId = "rook",
+  difficulty: Difficulty = "standard",
+): Match {
+  const fighter = (id: FighterId): Fighter => ({
+    id,
+    health: FIGHTERS[id].maxHealth,
+    stamina: FIGHTERS[id].maxStamina,
+    history: [],
+    specialCooldown: 0,
+  });
   return {
-    player: { health: 100, stamina: 100, history: [] },
-    cpu: { health: 100, stamina: 100, history: [] },
-    distance: "close",
+    player: fighter(player),
+    cpu: fighter(cpu),
+    distance: "mid",
     turn: 1,
     outcome: null,
+    difficulty,
   };
 }
 export function cost(action: Action, fighter: Fighter): number {
@@ -135,11 +65,26 @@ export function cost(action: Action, fighter: Fighter): number {
       if (previous !== "dodge") break;
       repeats++;
     }
-  return MOVES[action].cost + Math.min(repeats, 2) * 10;
+  return getMove(action, fighter.id).cost + Math.min(repeats, 2) * 10;
 }
 export function canUse(action: Action, fighter: Fighter): boolean {
-  return fighter.stamina >= cost(action, fighter);
+  return (
+    fighter.stamina >= cost(action, fighter) &&
+    (action !== "special" || fighter.specialCooldown === 0)
+  );
 }
+export function unavailableReason(
+  action: Action,
+  fighter: Fighter,
+): string | null {
+  if (action === "special" && fighter.specialCooldown > 0)
+    return `Ready in ${fighter.specialCooldown} turn${fighter.specialCooldown === 1 ? "" : "s"}`;
+  if (fighter.stamina < cost(action, fighter))
+    return `Need ${cost(action, fighter)} stamina`;
+  return null;
+}
+const shift = (distance: Distance, amount: number): Distance =>
+  DISTANCES[Math.max(0, Math.min(2, DISTANCES.indexOf(distance) + amount))];
 export function resolveTurn(
   before: Match,
   playerAction: Action,
@@ -149,50 +94,61 @@ export function resolveTurn(
   const actions: [Action, Action] = [playerAction, cpuAction];
   const original = [before.player, before.cpu];
   actions.forEach((a, i) => {
-    if (!canUse(a, original[i])) throw new Error("Insufficient stamina.");
+    if (!canUse(a, original[i]))
+      throw new Error(unavailableReason(a, original[i]) ?? "Invalid action");
   });
-  const state: Match = structuredClone(before);
-  const fighters = [state.player, state.cpu];
-  const names = ["You", "Rook"];
-  const messages: string[] = [];
-  const damage: [number, number] = [0, 0];
+  const state = structuredClone(before),
+    fighters = [state.player, state.cpu];
+  const names = ["You", FIGHTERS[state.cpu.id].name];
+  const moves = actions.map((a, i) => getMove(a, original[i].id));
+  const messages: string[] = [],
+    damage: [number, number] = [0, 0],
+    dodged = [false, false],
+    blocked = [false, false];
   actions.forEach((a, i) => {
     fighters[i].stamina -= cost(a, original[i]);
+    fighters[i].specialCooldown = Math.max(0, original[i].specialCooldown - 1);
+    if (moves[i].cooldown) fighters[i].specialCooldown = moves[i].cooldown!;
   });
-  // Determine active hits from the same snapshot. Equal-speed attacks trade.
-  const inRange = actions.map((a) => MOVES[a].range.includes(state.distance));
-  const offensive = actions.map((a) =>
-    ["strike", "grab"].includes(MOVES[a].type),
-  );
-  const interrupted = actions.map(
-    (a, i) =>
+  // Both movement commitments combine before either attack is checked for reach.
+  // Opposite directions cancel, and two advances/retreats can shift two bands.
+  const movement = moves.reduce((sum, m) => sum + (m.movement ?? 0), 0);
+  state.distance = shift(before.distance, movement);
+  const attackDistance = state.distance;
+  if (moves.some((m) => m.movement))
+    messages.push(
+      `Footwork: ${before.distance.toUpperCase()} → ${state.distance.toUpperCase()}${movement === 0 ? " — opposing movement cancelled" : state.distance === before.distance ? " — arena boundary reached" : ""}.`,
+    );
+  const inRange = moves.map((m) => m.range.includes(attackDistance));
+  const offensive = moves.map((m) => ["strike", "grab"].includes(m.type));
+  const interrupted = moves.map(
+    (move, i) =>
       offensive[i] &&
       offensive[1 - i] &&
       inRange[i] &&
       inRange[1 - i] &&
-      MOVES[actions[1 - i]].speed > MOVES[a].speed,
+      moves[1 - i].speed > move.speed,
   );
-  actions.forEach((action, i) => {
+  let knockback = 0;
+  moves.forEach((move, i) => {
     const target = 1 - i,
-      move = MOVES[action],
       defense = actions[target];
     if (!offensive[i]) return;
     if (!inRange[i]) {
       messages.push(
-        `${names[i]}: ${move.name} missed at ${state.distance} range.`,
+        `${names[i]}: ${move.name} missed at ${attackDistance} range.`,
       );
       return;
     }
     if (interrupted[i]) {
       messages.push(
-        `${names[target]} interrupted ${names[i] === "You" ? "your" : "Rook’s"} ${move.name.toLowerCase()}.`,
+        `${names[target]} interrupted ${names[i] === "You" ? "your" : `${names[i]}’s`} ${move.name}.`,
       );
       return;
     }
     if (defense === "dodge" && move.type === "strike") {
-      messages.push(
-        `${names[target]} dodged ${names[i] === "You" ? "your" : "Rook’s"} ${move.name.toLowerCase()}.`,
-      );
+      dodged[target] = true;
+      messages.push(`${names[target]} dodged ${move.name}.`);
       return;
     }
     let hit = move.damage;
@@ -201,29 +157,39 @@ export function resolveTurn(
       if (fighters[target].stamina >= guardCost) {
         fighters[target].stamina -= guardCost;
         hit = move.chip ?? 0;
+        blocked[target] = true;
         messages.push(
-          `${names[target]} blocked ${move.name.toLowerCase()} (${hit} chip; −${guardCost} stamina).`,
+          `${names[target]} blocked ${move.name} (${hit} chip; −${guardCost} stamina).`,
         );
       } else {
         fighters[target].stamina = 0;
         messages.push(
-          `${names[target]}: guard broken! Not enough stamina to absorb the hit.`,
+          `${names[target]}: guard broken! ${move.name} hits for ${hit}.`,
         );
       }
     } else {
-      if (MOVES[defense].vulnerability)
-        hit = Math.round(hit * MOVES[defense].vulnerability!);
+      if (moves[target].vulnerability)
+        hit = Math.round(hit * moves[target].vulnerability!);
       messages.push(
         `${names[i]}: ${move.name} hit for ${hit}${defense === "recover" ? " — recovery punished" : move.type === "grab" && ["block", "dodge"].includes(defense) ? ` — caught ${defense}` : ""}.`,
       );
     }
     damage[target] = hit;
+    if (hit > 0 && !blocked[target]) knockback += move.knockback ?? 0;
   });
+  if (knockback) {
+    state.distance = shift(attackDistance, knockback);
+    messages.push(
+      `Impact pushed the fighters to ${state.distance.toUpperCase()} range.`,
+    );
+  }
   fighters.forEach((fighter, i) => {
     fighter.health = Math.max(0, fighter.health - damage[i]);
-    const recovery = MOVES[actions[i]].recovery;
-    if (recovery) {
-      const restored = Math.min(recovery, 100 - fighter.stamina);
+    if (moves[i].recovery) {
+      const restored = Math.min(
+        moves[i].recovery!,
+        FIGHTERS[fighter.id].maxStamina - fighter.stamina,
+      );
       fighter.stamina += restored;
       messages.push(`${names[i]} recovered ${restored} stamina.`);
     }
@@ -244,45 +210,89 @@ export function resolveTurn(
     state,
     messages,
     damage,
+    actions,
+    previousDistance: before.distance,
+    attackDistance,
+    interrupted,
+    dodged,
+    blocked,
     staminaDelta: [
       state.player.stamina - before.player.stamina,
       state.cpu.stamina - before.cpu.stamina,
     ],
-    actions,
   };
 }
-// Only completed history is available here. The UI calls this before enabling input.
+// CPU sees only the last completed state. Difficulty changes reads, never damage or hidden knowledge.
 export function chooseCpu(
   state: Match,
   random: () => number = Math.random,
 ): Action {
+  const { cpu, player, distance } = state;
+  const personality = FIGHTERS[cpu.id].personality;
   const weights: Record<Action, number> = {
     light: 5,
     heavy: 2,
     block: 2,
-    dodge: 2,
+    dodge: 1.5,
     grab: 2,
-    recover: 1,
+    recover: 0.5,
+    special: 2,
+    advance: 1,
+    retreat: 0.6,
   };
-  const history = state.player.history;
-  const count = (a: Action) => history.filter((x) => x === a).length;
-  weights.recover +=
-    state.cpu.stamina < 35 ? 14 : state.cpu.stamina < 65 ? 5 : 0;
-  weights.block += state.cpu.health < 30 ? 3 : 0;
+  const read =
+    state.difficulty === "rookie"
+      ? 0.3
+      : state.difficulty === "expert"
+        ? 1.7
+        : 1;
+  const count = (a: Action) =>
+    player.history.filter((x) => x === a).length * read;
+  weights.recover += cpu.stamina < 30 ? 18 : cpu.stamina < 55 ? 6 : 0;
+  weights.block += cpu.health / FIGHTERS[cpu.id].maxHealth < 0.3 ? 3 : 0;
   weights.grab += count("block") * 3 + count("dodge") * 2;
-  weights.light += count("heavy") * 3;
-  weights.heavy += count("recover") * 2 + (state.player.stamina < 15 ? 3 : 0);
-  weights.block += count("light") * 2;
-  weights.dodge += count("light");
-  if (state.cpu.stamina > 85) weights.recover = 0.1;
-  if (state.distance !== "close") weights.grab = 0;
-  if (state.distance === "far") {
-    weights.light = 0;
-    weights.heavy = 0;
+  weights.light += count("heavy") * 3 + count("grab") * 2;
+  weights.heavy += count("recover") * 2 + (player.stamina < 15 ? 3 : 0);
+  weights.block += count("light") * 1.5;
+  weights.dodge += count("special");
+  if (personality === "pressure") {
+    weights.light += 2;
+    weights.special += 2;
+    weights.advance += 1;
   }
-  const available = (Object.keys(MOVES) as Action[]).filter((a) =>
-    canUse(a, state.cpu),
-  );
-  let ticket = random() * available.reduce((sum, a) => sum + weights[a], 0);
+  if (personality === "grappler") {
+    weights.grab += 3;
+    weights.heavy += 1;
+    weights.advance += 2;
+  }
+  if (personality === "zoner") {
+    weights.special += 3;
+    weights.retreat += distance === "close" ? 10 : 0;
+    if (distance === "mid") { weights.light += 7; weights.advance = 0; }
+  }
+  for (const a of ACTIONS) {
+    const move = getMove(a, cpu.id);
+    if (
+      move.range.length &&
+      !move.range.includes(shift(distance, move.movement ?? 0))
+    )
+      weights[a] *= 0.06;
+  }
+  if (distance === "far") {
+    weights.advance += personality === "zoner" ? 1 : 18;
+    weights.retreat = 0;
+    weights.block *= 0.25;
+    weights.dodge *= 0.25;
+  }
+  if (distance === "mid" && personality === "grappler") weights.advance += 6;
+  if (distance === "close") weights.advance = 0;
+  // A retreat read can lure short attacks out of range; approach can catch recovery.
+  weights.retreat += distance !== "far" ? count("light") * 0.7 : 0;
+  weights.advance += distance !== "close" && personality !== "zoner" ? count("recover") * 1.4 : 0;
+  if (cpu.stamina > FIGHTERS[cpu.id].maxStamina - 15) weights.recover = 0.05;
+  const available = ACTIONS.filter((a) => canUse(a, cpu));
+  let ticket =
+    Math.min(0.999999, Math.max(0, random())) *
+    available.reduce((sum, a) => sum + weights[a], 0);
   return available.find((a) => (ticket -= weights[a]) < 0) ?? "recover";
 }
