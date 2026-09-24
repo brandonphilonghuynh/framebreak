@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import { COMBAT } from "../game/tuning";
 import { ARENAS, FIGHTERS, isBoss, platformsAt } from "../game/data";
 import { WEAPONS, GADGET_NAMES, type GadgetId } from "../game/equipment";
 import {
@@ -337,7 +338,7 @@ export class Arena extends Phaser.Scene {
         );
       rig.label.setText(
         f.charge
-          ? `${f.charge === "ultimate" ? "ULT" : "CHARGE"} ${Math.min(100, Math.floor((f.chargeTime / (f.charge === "ultimate" ? 1.1 : 1.3)) * 100))}%`
+          ? `${f.charge === "ultimate" ? "ULT" : "CHARGE"} ${Math.min(100, Math.floor((f.chargeTime / (f.charge === "ultimate" ? COMBAT.ultimateCharge : COMBAT.specialCharge)) * 100))}%`
           : f.stun > 0
             ? "STUNNED"
             : `${i ? "CPU" : "YOU"} · ${Math.round(f.damage)}%`,

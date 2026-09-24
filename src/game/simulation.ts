@@ -20,6 +20,7 @@ import {
   type Pickup,
   type GadgetId,
 } from "./equipment.ts";
+import { COMBAT } from "./tuning.ts";
 export interface Input {
   move: number;
   jump: boolean;
@@ -57,9 +58,13 @@ export interface Fighter {
   shield: number;
   grounded: boolean;
   jumps: number;
+  jumpCutAvailable: boolean;
   stun: number;
   invulnerable: number;
   attackCooldown: number;
+  attackBuffer: number;
+  attackHeld: boolean;
+  attackAim: Pick<Input, "move" | "up" | "down"> | null;
   specialCooldown: number;
   dodgeCooldown: number;
   parryCooldown: number;
@@ -67,6 +72,7 @@ export interface Fighter {
   guarding: boolean;
   charge: "special" | "ultimate" | null;
   chargeTime: number;
+  chargeReleased: boolean;
   chargeRecovery: boolean;
   recoveryUsed: boolean;
   dropTime: number;
@@ -147,6 +153,7 @@ export interface Config {
   mode: Mode;
   hazards: boolean;
   practice?: "dummy" | "parry";
+  practiceInfiniteMeter?: boolean;
   countdown?: boolean;
   equipment?: boolean;
   playerLevel?: number;
@@ -186,9 +193,13 @@ function makeFighter(id: CombatantId, side: 0 | 1): Fighter {
     shield: 100,
     grounded: false,
     jumps: 2,
+    jumpCutAvailable: false,
     stun: 0,
     invulnerable: 1.8,
     attackCooldown: 0,
+    attackBuffer: 0,
+    attackHeld: false,
+    attackAim: null,
     specialCooldown: 0,
     dodgeCooldown: 0,
     parryCooldown: 0,
@@ -196,6 +207,7 @@ function makeFighter(id: CombatantId, side: 0 | 1): Fighter {
     guarding: false,
     charge: null,
     chargeTime: 0,
+    chargeReleased: false,
     chargeRecovery: false,
     recoveryUsed: false,
     dropTime: 0,
@@ -296,7 +308,12 @@ function releaseCharge(w: WorldState, f: Fighter) {
   const style = archetype(f.id);
   const kind = f.charge;
   if (!kind) return;
-  const charge = clamp(f.chargeTime / (kind === "ultimate" ? 1.1 : 1.3), 0, 1);
+  const charge = clamp(
+    f.chargeTime /
+      (kind === "ultimate" ? COMBAT.ultimateCharge : COMBAT.specialCharge),
+    0,
+    1,
+  );
   f.charge = null;
   f.chargeTime = 0;
   f.pose = kind;
@@ -358,8 +375,9 @@ function releaseCharge(w: WorldState, f: Fighter) {
   } else {
     f.specialCooldown = 0.65;
     if (f.chargeRecovery) {
-      f.vy = -740 - charge * 130;
-      f.vx = f.facing * 125;
+      f.vy = -COMBAT.recoveryRise - charge * COMBAT.recoveryChargeRise;
+      f.vx = f.facing * COMBAT.recoveryDrift;
+      f.jumpCutAvailable = false;
       f.dashTime = 0.17;
       f.recoveryUsed = true;
       f.grounded = false;
@@ -450,23 +468,39 @@ function launch(w: WorldState, target: Fighter, attack: Attack) {
   target.vx = direction * force * Math.cos(attack.vertical);
   target.vy = -force * Math.sin(attack.vertical);
   target.grounded = false;
-  target.stun = clamp(
-    Math.max(
-      attack.stun && target.airStunGrace === 0 ? attack.stun : 0,
-      0.12 + force / 2400,
+  target.stun = Math.max(
+    target.stun,
+    clamp(
+      Math.max(
+        attack.stun && target.airStunGrace === 0 ? attack.stun : 0,
+        0.5 + force / 1800,
+      ),
+      0.5,
+      attack.stun ? 1.5 : 0.95,
     ),
-    0.15,
-    attack.stun ? 1.1 : 0.7,
   );
-  if (attack.stun) target.airStunGrace = 1.4;
+  if (attack.stun) target.airStunGrace = 1.8;
+  target.attackBuffer = 0;
+  target.attackAim = null;
+  target.jumpCutAvailable = false;
   target.charge = null;
   target.chargeTime = 0;
   target.guarding = false;
   target.dashTime = 0;
   target.pose = "hurt";
   target.poseTime = target.stun;
-  owner.meter = clamp(owner.meter + attack.damage * 1.25, 0, 100);
-  target.meter = clamp(target.meter + attack.damage * 0.6, 0, 100);
+  // An ultimate cannot immediately fund its next use through its own two hits.
+  if (attack.kind !== "ultimate")
+    owner.meter = clamp(
+      owner.meter + attack.damage * COMBAT.meterOnHit,
+      0,
+      100,
+    );
+  target.meter = clamp(
+    target.meter + attack.damage * COMBAT.meterOnDamage,
+    0,
+    100,
+  );
   owner.hits++;
   w.hitstop = attack.kind === "ultimate" ? 0.085 : 0.045;
   emit(w, {
@@ -499,17 +533,19 @@ export function applyAttack(
     : Math.sign(w.fighters[attack.owner].x - target.x) || -attack.direction;
   const facing =
     sourceDirection === target.facing || Math.abs(attack.x - target.x) < 22;
-  if (target.parryWindow > 0 && facing) {
+  if (target.stun === 0 && target.parryWindow > 0 && facing) {
     const owner = w.fighters[attack.owner];
     target.parries++;
-    target.meter = clamp(target.meter + 25, 0, 100);
+    target.meter = clamp(target.meter + COMBAT.meterOnParry, 0, 100);
     target.shield = clamp(target.shield + 14, 0, 100);
     target.invulnerable = 0.18;
     target.parryWindow = 0;
     target.pose = "parry";
     target.poseTime = 0.35;
     w.hitstop = 0.09;
-    owner.stun = Math.max(owner.stun, 0.48);
+    owner.stun = Math.max(owner.stun, 0.7);
+    owner.attackBuffer = 0;
+    owner.attackAim = null;
     owner.charge = null;
     owner.chargeTime = 0;
     if (attack.projectile) {
@@ -545,13 +581,13 @@ export function applyAttack(
   if (target.guarding && facing && attack.kind !== "ultimate") {
     target.shield -= attack.damage * 2.4;
     target.vx = attack.direction * 100;
-    target.meter = clamp(target.meter + 3, 0, 100);
+    target.meter = clamp(target.meter + COMBAT.meterOnGuard, 0, 100);
     if (target.shield <= 0) {
       target.shield = 0;
-      target.stun = 1.15;
+      target.stun = 1.4;
       target.guarding = false;
       target.pose = "hurt";
-      target.poseTime = 1.15;
+      target.poseTime = 1.4;
       emit(w, {
         type: "break",
         x: target.x,
@@ -683,7 +719,8 @@ function updatePickups(w: WorldState, pressed: boolean[], dt: number) {
     p.life = 0;
     if (p.type === "weapon") f.weapon = p.item;
     else if (p.item === "repair") f.damage = Math.max(0, f.damage - 20);
-    else if (p.item === "capacitor") f.meter = Math.min(100, f.meter + 35);
+    else if (p.item === "capacitor")
+      f.meter = Math.min(100, f.meter + COMBAT.meterPickup);
     else if (p.item === "aegis") {
       f.shield = 100;
       f.invulnerable = Math.max(f.invulnerable, 1);
@@ -714,6 +751,16 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
     w.countdown = Math.max(0, w.countdown - dt);
     return;
   }
+  // Keep a fresh press through hitstop or the end of strike recovery. Holding J
+  // still produces one strike; the player must press again for the next link.
+  w.fighters.forEach((f, side) => {
+    const input = inputs[side];
+    if (input.attack && !f.attackHeld) {
+      f.attackBuffer = COMBAT.attackBuffer;
+      f.attackAim = { move: input.move, up: input.up, down: input.down };
+    }
+    f.attackHeld = input.attack;
+  });
   if (w.hitstop > 0) {
     w.hitstop = Math.max(0, w.hitstop - dt);
     return;
@@ -728,7 +775,14 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
   if (w.config.mode === "boss") {
     const boss = w.fighters[1];
     if (boss.stocks < 2 || boss.damage > 85) w.bossPhase = 2;
-    boss.meter = Math.min(100, boss.meter + dt * (w.bossPhase === 2 ? 8 : 3));
+    boss.meter = Math.min(
+      100,
+      boss.meter +
+        dt *
+          (w.bossPhase === 2
+            ? COMBAT.awakenedMeterPerSecond
+            : COMBAT.bossMeterPerSecond),
+    );
     if (w.bossPhase === 2 && (boss.id === "warden" || boss.id === "eclipse"))
       boss.damage = Math.max(0, boss.damage - dt * 1.5);
     boss.weapon = SIGNATURES[boss.id][w.bossPhase === 2 ? 1 : 0].id;
@@ -740,6 +794,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       "stun",
       "invulnerable",
       "attackCooldown",
+      "attackBuffer",
       "specialCooldown",
       "dodgeCooldown",
       "parryCooldown",
@@ -765,9 +820,15 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       f.x += platforms[attached].x - previousPlatforms[attached].x;
       f.y += platforms[attached].y - previousPlatforms[attached].y;
     }
-    if (w.config.mode === "training" && i === 0) f.meter = 100;
+    if (
+      w.config.mode === "training" &&
+      w.config.practiceInfiniteMeter &&
+      i === 0
+    )
+      f.meter = 100;
     f.guarding = input.guard && f.shield > 0 && f.stun === 0 && !f.charge;
     if (f.guarding) {
+      f.attackBuffer = 0;
       f.shield = Math.max(0, f.shield - 15 * dt);
       if (
         input.guard &&
@@ -785,10 +846,11 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       if (f.dashTime === 0) {
         const speed =
           def.speed *
+          (f.grounded ? 1 : COMBAT.airSpeedMultiplier) *
           (isBoss(f.id) && w.bossPhase === 2 ? 1.13 : 1) *
           (f.charge ? 0.32 : f.guarding ? 0.18 : 1);
         const target = clamp(input.move, -1, 1) * speed;
-        f.vx += (target - f.vx) * Math.min(1, dt * (f.grounded ? 16 : 5));
+        f.vx += (target - f.vx) * Math.min(1, dt * (f.grounded ? 16 : 6.5));
       }
       if (
         input.jump &&
@@ -797,7 +859,8 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         !f.guarding &&
         !f.charge
       ) {
-        f.vy = -(f.jumps === 2 ? def.jump : def.jump * 0.87);
+        f.jumpCutAvailable = f.grounded;
+        f.vy = -(f.grounded ? def.jump : def.jump * COMBAT.airJumpMultiplier);
         f.jumps--;
         f.grounded = false;
         f.pose = "jump";
@@ -827,6 +890,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         !f.charge
       ) {
         f.invulnerable = 0.24;
+        f.attackBuffer = 0;
         f.dodgeCooldown = 0.95;
         f.shield -= 18;
         f.vx = (input.move || f.facing) * 590;
@@ -845,6 +909,8 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         ) {
           f.charge = "ultimate";
           f.chargeTime = 0;
+          f.chargeReleased = false;
+          f.attackBuffer = 0;
           emit(w, {
             type: "charge",
             x: f.x,
@@ -862,35 +928,54 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         ) {
           f.charge = "special";
           f.chargeTime = 0;
+          f.chargeReleased = false;
+          f.attackBuffer = 0;
           f.chargeRecovery = input.up;
           emit(w, { type: "charge", x: f.x, y: f.y - 40, side: f.side });
         }
         if (f.charge) {
-          f.chargeTime = Math.min(1.5, f.chargeTime + dt);
+          f.chargeTime = Math.min(
+            f.charge === "ultimate"
+              ? COMBAT.ultimateCharge
+              : COMBAT.specialCharge,
+            f.chargeTime + dt,
+          );
           if (f.charge === "special" ? !input.special : !input.ultimate)
+            f.chargeReleased = true;
+          if (
+            f.chargeReleased &&
+            (f.charge !== "ultimate" || f.chargeTime >= COMBAT.ultimateWindup)
+          )
             releaseCharge(w, f);
-        } else if (input.attack && !f.last.attack && f.attackCooldown === 0) {
+        } else if (f.attackBuffer > 0 && f.attackCooldown === 0) {
+          const aim = f.attackAim ?? input;
+          f.attackBuffer = 0;
+          f.attackAim = null;
           const aerial = !f.grounded;
-          const downAerial = aerial && input.down;
-          const attackDirection = Math.sign(input.move) || f.facing;
+          const downAerial = aerial && aim.down;
+          const attackDirection = Math.sign(aim.move) || f.facing;
           f.combo = (f.combo % 3) + 1;
           const attackVertical = downAerial
             ? -0.8
-            : input.up
+            : aim.up
               ? 1.02
-              : aerial && input.move
+              : aerial && aim.move
                 ? 0.62
                 : f.grounded
                   ? f.combo === 3
                     ? 0.9
                     : 0.35
                   : 0.7;
-          f.comboTimer = 0.7;
-          f.attackCooldown = downAerial ? 0.46 : f.combo === 3 ? 0.4 : 0.24;
+          f.comboTimer = COMBAT.comboWindow;
+          f.attackCooldown = downAerial
+            ? 0.46
+            : f.combo === 3
+              ? COMBAT.finisherRecovery
+              : COMBAT.jabRecovery;
           f.pose = downAerial ? "down-attack" : "attack";
           f.poseTime = downAerial ? 0.3 : 0.22;
           const weapon = f.weapon ? WEAPONS[f.weapon] : null;
-          const aimY = input.down ? 0.7 : input.up ? -0.7 : 0;
+          const aimY = aim.down ? 0.7 : aim.up ? -0.7 : 0;
           const aimX = attackDirection * (aimY ? 0.72 : 1);
           const ranged =
             weapon && ["bow", "disc"].includes(weapon.shape) && !downAerial;
@@ -901,7 +986,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
               ? def.downAirDamage + (weapon?.damage ?? 0)
               : def.damage + (f.combo === 3 ? 3 : 0) + (weapon?.damage ?? 0),
             force:
-              (downAerial ? 220 : f.combo === 3 ? 300 : 190) +
+              (downAerial ? 220 : f.combo === 3 ? 300 : 110) +
               (weapon?.force ?? 0),
             vertical: attackVertical,
             direction: attackDirection,
@@ -909,7 +994,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
               f.x +
               attackDirection *
                 (downAerial ? 32 : 50 + (weapon?.reach ?? 0) / 2),
-            y: f.y + (downAerial ? 18 : input.up ? -90 : -48),
+            y: f.y + (downAerial ? 18 : aim.up ? -90 : -48),
             width: ranged
               ? 44
               : (downAerial ? 96 : archetype(f.id) === "rook" ? 108 : 86) +
@@ -932,8 +1017,11 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       f.chargeTime = 0;
       f.parryWindow = 0;
     }
-    // A short-release jump cuts upward velocity, allowing variable-height hops.
-    if (!input.jump && f.last.jump && f.vy < -260) f.vy *= 0.6;
+    // Short hops apply only to a ground jump, never to air jumps or recovery.
+    if (f.jumpCutAvailable && !input.jump && f.last.jump) {
+      if (f.stun === 0 && f.vy < -260) f.vy *= 0.6;
+      f.jumpCutAvailable = false;
+    }
     const previousY = f.y;
     f.vy = Math.min(1120, f.vy + WORLD.gravity * dt);
     f.x += f.vx * dt;
@@ -1028,7 +1116,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
           continue;
         w.hazardHit.push(f.side);
         if (f.parryWindow > 0) {
-          f.meter = clamp(f.meter + 12, 0, 100);
+          f.meter = clamp(f.meter + COMBAT.meterOnHazardParry, 0, 100);
           f.parries++;
           emit(w, {
             type: "parry",

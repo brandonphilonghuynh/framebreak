@@ -1,0 +1,23 @@
+/** Shared by both sides, CPU decisions and charge feedback. Timings are in seconds. */
+export const COMBAT = {
+  attackBuffer: 0.16,
+  comboWindow: 0.85,
+  jabRecovery: 0.22,
+  finisherRecovery: 0.52,
+  specialCharge: 1.3,
+  ultimateCharge: 2,
+  ultimateWindup: 0.5,
+  airJumpMultiplier: 1.3,
+  airSpeedMultiplier: 1.12,
+  recoveryRise: 900,
+  recoveryChargeRise: 150,
+  recoveryDrift: 210,
+  meterOnHit: 0.35,
+  meterOnDamage: 0.12,
+  meterOnParry: 10,
+  meterOnHazardParry: 6,
+  meterOnGuard: 1,
+  meterPickup: 20,
+  bossMeterPerSecond: 1,
+  awakenedMeterPerSecond: 2,
+} as const;

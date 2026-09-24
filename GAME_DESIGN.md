@@ -10,15 +10,15 @@ A three-second deployment freezes physics, attacks, clocks and deliveries. Robot
 
 ## Movement and combat
 
-A 1200 × 680 world runs at 60 fixed simulation steps per second. Gravity is 1650 units/s². Two jumps, short hops, air steering, fast-fall, thin-platform dropping and one rising recovery per airtime support aerial combat. Landing restores jumps and recovery. Moving platforms carry standing fighters and resting pickups. There is no ledge grab or wall jump.
+A 1200 × 680 world runs at 60 fixed simulation steps per second. Gravity is 1650 units/s². Two jumps, short hops, full-lift air jumps, air steering, fast-fall, thin-platform dropping and one rising recovery per airtime support aerial combat. Only the first ground jump is shortened by releasing early, so an air jump remains a reliable route back to a platform. Landing restores jumps and recovery. Moving platforms carry standing fighters and resting pickups. There is no ledge grab or wall jump.
 
 Blast boundaries are x < −190, x > 1390, y < −280 or y > 880. Ring-out resets damage and equipment, retains half meter, and preserves match totals. Boss respawns retain a boss weapon. Simultaneous final ring-outs can draw.
 
-J chains three strikes in a 0.7-second window. Movement and W/S aim aerials; each pilot has a downward stunning attack. Repeated down-air stun has a 1.4-second grace interval, preventing continuous full stun locks. Weapon shape changes damage, reach and recovery: hammer launches harder, claws recover faster, spear extends reach, bow fires bolts and disc returns.
+J chains three strikes in a 0.85-second window. The next strike can be buffered 160 ms early, while holding J still produces only one press. Early jab hits use less launch force and a longer recovery window so a clean sequence can finish before the opponent can act; ordinary hit-stun now lasts at least 0.5 seconds and up to 0.95 seconds, while the third hit launches. Movement and W/S aim aerials; each pilot has a downward stunning attack. Down-air stuns now last roughly 1.18–1.41 seconds, with a 1.8-second grace interval preserving setup without allowing repeated full stun locks. Weapon shape changes damage, reach and recovery: hammer launches harder, claws recover faster, spear extends reach, bow fires bolts and disc returns.
 
-K charges a character-specific special for up to 1.3 seconds. I consumes full meter on release and reaches full charge at 1.1 seconds. Hits interrupt charging without spending the ultimate meter. W + K selects a rising recovery. Vector dashes, Rook strikes an expanding area, Nyx/Astra fire charged projectiles, Ember rises in a flame strike, and Solis throws a returning disc. Ultimate hitboxes can hit each target at most twice, with a 160 ms interval.
+K charges a character-specific special for up to 1.3 seconds. I consumes full meter on release and reaches full charge at 2 seconds; releasing earlier still commits to a 0.5-second windup, and damage or parry interrupts it without spending meter. Normal combat meter gain is deliberately modest: 0.35 per damage dealt and 0.12 per damage received, with a 10-point perfect-parry bonus. W + K selects a rising recovery. Vector dashes, Rook strikes an expanding area, Nyx/Astra fire charged projectiles, Ember rises in a flame strike, and Solis throws a returning disc. Ultimate hitboxes can hit each target at most twice, with a 160 ms interval.
 
-Launch grows with accumulated damage and shrinks with weight. Damage dealt grants 1.25× meter; damage received grants 0.6× meter. Damage totals and combo records persist across respawns.
+Launch grows with accumulated damage and shrinks with weight. Damage dealt grants 0.35× meter; damage received grants 0.12× meter. Damage totals and combo records persist across respawns.
 
 ## Defense and CPU
 
@@ -36,12 +36,12 @@ Each 250 XP grants a level, capped at 50. Rank tiers every 200 points are Seedli
 
 ## Boss contracts
 
-| Boss | Level | Lumens / XP | Identity |
-| --- | ---: | ---: | --- |
-| Verdant Warden | 2 | 5,000 / 400 | Heavy garden guardian; regenerating awakened phase |
-| Vesper | 5 | 14,000 / 650 | Fast prism ranged fighter |
-| Heliarch | 9 | 42,000 / 1,100 | Heavy solar furnace bruiser |
-| Eclipse | 14 | 120,000 / 1,800 | Fast seraph with ranged control and regeneration |
+| Boss           | Level |     Lumens / XP | Identity                                           |
+| -------------- | ----: | --------------: | -------------------------------------------------- |
+| Verdant Warden |     2 |     5,000 / 400 | Heavy garden guardian; regenerating awakened phase |
+| Vesper         |     5 |    14,000 / 650 | Fast prism ranged fighter                          |
+| Heliarch       |     9 |  42,000 / 1,100 | Heavy solar furnace bruiser                        |
+| Eclipse        |    14 | 120,000 / 1,800 | Fast seraph with ranged control and regeneration   |
 
 Boss damage scales with the greater of player level and contract level, within a capped multiplier. Bosses awaken at more than 85% damage or after losing a stock, then remain awakened. They switch signature weapons, move faster and gain meter faster. Boss IDs never enter player selection, shop or practice selectors.
 
@@ -53,7 +53,7 @@ Solstice Gardens is the main map. Helios Foundry and Aurora Spires retain the fu
 
 Playable pilots receive both unique weapons at 5 seconds and every 10 seconds thereafter. Shared blade/gadget pairs arrive every 10 seconds. Pickups fall onto platforms, expire after 15 seconds and require a fresh E press. Signature gear is owner-specific. Bosses spawn armed and get no signature delivery robots.
 
-Shared gadgets rotate through repair (−20% damage), capacitor (+35 meter), aegis (shield refill and brief protection), and jet (restored jumps/recovery with an upward boost).
+Shared gadgets rotate through repair (−20% damage), capacitor (+20 meter), aegis (shield refill and brief protection), and jet (restored jumps/recovery with an upward boost).
 
 Optional hazards warn with red markers from 8.3 to 10 seconds in a repeating 12-second cycle. During the 0.35-second strike window, a fighter in the marked column can take 9 damage once. A timely parry deflects the hazard and grants meter. The falling spear visual represents a column hazard, not a separately simulated projectile.
 
@@ -67,4 +67,4 @@ Profiles save to localStorage at the current origin, with JSON export/import and
 
 ## Validation and limits
 
-Forty automated tests cover movement, parries, charge/recovery, diagonal/down-air attacks, two-hit ultimates, moving platforms, deployment, scheduled gear, ownership, purchases, reward idempotence, saved data and bosses. The seeded balance harness runs 108 CPU matchups. Human playtesting remains necessary for pricing, advanced recovery, pressure escapes and high-level bosses. Desktop browser play is the current target.
+Fifty-one automated tests cover movement, parries, charge/recovery, buffered combos, diagonal/down-air attacks, two-hit ultimates, moving platforms, deployment, scheduled gear, ownership, purchases, reward idempotence, saved data and bosses. The seeded balance harness runs 108 CPU matchups. Human playtesting remains necessary for pricing, advanced recovery, pressure escapes and high-level bosses. Desktop browser play is the current target.

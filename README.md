@@ -21,49 +21,49 @@ Start with **Practice lab** to learn movement or choose **Fighters → Try** to 
 
 ## Controls
 
-| Key | Action |
-| --- | --- |
-| A / D or Left / Right | Run and steer in the air |
-| Space / W / Up | Jump and double-jump; release early for a short hop |
-| S / Down | Fast-fall; drop through thin platforms |
-| J | Three-strike chain; usable in the air |
-| Down + J in the air | Character-specific stun aerial |
-| A/D + W/S + J | Directional attacks; bows and discs aim diagonally |
-| Hold / release K | Charge and fire a signature special |
-| W + K, release K | Rising recovery, once per airtime |
-| L | Tap at impact to parry; hold to shield |
-| Shift | Dodge at a shield cost |
-| Hold / release I | Charge and fire an ultimate at full meter |
-| E | Pick up the nearest eligible weapon or gadget |
-| Esc / P | Pause / resume |
+| Key                   | Action                                                              |
+| --------------------- | ------------------------------------------------------------------- |
+| A / D or Left / Right | Run and steer in the air                                            |
+| Space / W / Up        | Jump and double-jump; the air jump keeps its full lift              |
+| S / Down              | Fast-fall; drop through thin platforms                              |
+| J                     | Three-strike chain; tap the next strike slightly early to buffer it |
+| Down + J in the air   | Character-specific stun aerial                                      |
+| A/D + W/S + J         | Directional attacks; bows and discs aim diagonally                  |
+| Hold / release K      | Charge and fire a signature special                                 |
+| W + K, release K      | Rising recovery, once per airtime                                   |
+| L                     | Tap at impact to parry; hold to shield                              |
+| Shift                 | Dodge at a shield cost                                              |
+| Hold / release I      | Charge and fire an ultimate; full charge takes 2 seconds            |
+| E                     | Pick up the nearest eligible weapon or gadget                       |
+| Esc / P               | Pause / resume                                                      |
 
 Keyboard is recommended for simultaneous controls. On-screen buttons also support mouse holds. Losing focus pauses the match. Sound effects and music start off; enable them in Settings. Reduced motion honors the OS preference and suppresses cosmetic shake and animation.
 
-The first **155 ms** of L parries frontal attacks. Projectile parries reflect ownership. Ultimates bypass a held shield but can be parried; their lingering hitboxes can strike each target **at most twice**, 160 ms apart. Damage % increases knockback, rather than representing remaining health.
+The first **155 ms** of L parries frontal attacks. Projectile parries reflect ownership. Ultimates bypass a held shield but can be parried; their lingering hitboxes can strike each target **at most twice**, 160 ms apart. Ultimates take 2 seconds to fully charge and commit to a 0.5-second windup even when released early. Down-air stuns last longer, with repeated spikes using a grace interval to prevent infinite locks. Damage % increases knockback, rather than representing remaining health.
 
 ## Pilots and progression
 
-| Pilot | Lumens | Role | Signature weapons |
-| --- | ---: | --- | --- |
-| Vector | Starter | Fast rushdown | Helio sabre / Arc talons |
-| Rook | 2,500 | Heavy launch power | Canopy maul / Root pike |
-| Nyx | 6,500 | Ranged control | Prism bow / Crescent mirror |
-| Ember | 12,000 | Aerial pressure | Flare claws / Meteor cleaver |
-| Solis | 22,000 | Heavy solar control | Corona aegis / Dawn hammer |
-| Astra | 40,000 | Fast advanced duelist | Orbit lance / Sunstring |
+| Pilot  |  Lumens | Role                  | Signature weapons            |
+| ------ | ------: | --------------------- | ---------------------------- |
+| Vector | Starter | Fast rushdown         | Helio sabre / Arc talons     |
+| Rook   |   2,500 | Heavy launch power    | Canopy maul / Root pike      |
+| Nyx    |   6,500 | Ranged control        | Prism bow / Crescent mirror  |
+| Ember  |  12,000 | Aerial pressure       | Flare claws / Meteor cleaver |
+| Solis  |  22,000 | Heavy solar control   | Corona aegis / Dawn hammer   |
+| Astra  |  40,000 | Fast advanced duelist | Orbit lance / Sunstring      |
 
 Start with Vector and 1,000 Lumens. Ranked wins grant currency, XP and rank points; stronger opponents pay more, with a capped streak bonus. Ranked losses grant 35 XP and no currency. Every 250 XP advances a level, up to level 50. Higher-priced fighters offer stronger stats or expanded tools, while ranked opponents also advance with your selected tier.
 
-| Boss | Unlock level | One-time bounty | XP |
-| --- | ---: | ---: | ---: |
-| Verdant Warden | 2 | 5,000 | 400 |
-| Vesper | 5 | 14,000 | 650 |
-| Heliarch | 9 | 42,000 | 1,100 |
-| Eclipse | 14 | 120,000 | 1,800 |
+| Boss           | Unlock level | One-time bounty |    XP |
+| -------------- | -----------: | --------------: | ----: |
+| Verdant Warden |            2 |           5,000 |   400 |
+| Vesper         |            5 |          14,000 |   650 |
+| Heliarch       |            9 |          42,000 | 1,100 |
+| Eclipse        |           14 |         120,000 | 1,800 |
 
 Bosses are never playable. They enter armed, scale with your level and awaken a second phase with a new weapon. You have three stocks; bosses have two reinforced stocks. Losses can be retried. A victory permanently clears that contract and awards its bounty once per profile.
 
-Progress auto-saves in this browser at this address. **Profile → Export save** creates a portable JSON backup. Import validates a save and asks before replacing your profile. Clearing browser data removes the local save unless you have a backup. This is an offline CPU ladder, with no online leaderboard, account or server verification.
+Progress auto-saves in this browser at this address. **Profile → Export save** creates a portable JSON backup. Import validates a save and asks before replacing your profile. Clearing browser data removes the local save unless you have a backup. This is an offline CPU ladder, with no online leaderboard, account or server verification. Practice starts with normal meter pacing; **Unlimited ultimate meter** is an explicit Flight check option.
 
 ## Living arenas
 
@@ -78,7 +78,7 @@ Red warnings precede optional falling solar spears. Results show both portraits,
 ## Development
 
 ```sh
-npm test            # 40 regression tests
+npm test            # 51 regression tests
 npm run typecheck   # Strict TypeScript
 npm run balance     # 108 seeded CPU matchups
 npm run build       # Production dist/

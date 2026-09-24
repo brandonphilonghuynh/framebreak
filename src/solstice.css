@@ -17,6 +17,9 @@
 .control-deck {
   flex-wrap: wrap;
 }
+.check + .check {
+  margin-top: 12px;
+}
 @media (max-width: 700px) {
   .game-frame {
     width: 100%;

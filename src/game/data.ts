@@ -46,7 +46,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAirDescription:
       "A fast diagonal heel that spikes and freezes a rival in place.",
     downAirDamage: 9,
-    downAirStun: 0.82,
+    downAirStun: 1.18,
     specialDescription:
       "Charge a forward dash. More charge means more reach and launch power.",
     ultimateDescription:
@@ -71,7 +71,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAirDescription:
       "A heavy downward hammer with the longest stun and launch weight.",
     downAirDamage: 12,
-    downAirStun: 0.92,
+    downAirStun: 1.28,
     specialDescription:
       "Charge a seismic strike. The ground wave grows with your charge.",
     ultimateDescription:
@@ -95,7 +95,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Shadow dive",
     downAirDescription: "A quick descending blade that sets up a ranged reset.",
     downAirDamage: 8,
-    downAirStun: 0.86,
+    downAirStun: 1.22,
     specialDescription:
       "Hold to grow a piercing prism bolt. Releasing early fires a quick shot.",
     ultimateDescription:
@@ -119,7 +119,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Meteor heel",
     downAirDescription: "A flaming heel that pins a rival below Ember.",
     downAirDamage: 10,
-    downAirStun: 0.88,
+    downAirStun: 1.24,
     specialDescription:
       "Charge a rising flame strike. Strong vertical launch; useful in the air.",
     ultimateDescription:
@@ -143,7 +143,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Zenith fall",
     downAirDescription: "A descending shield strike with a long stun.",
     downAirDamage: 13,
-    downAirStun: 0.93,
+    downAirStun: 1.29,
     specialDescription:
       "Hurl a growing solar disc that returns toward its launch point.",
     ultimateDescription:
@@ -167,7 +167,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Comet needle",
     downAirDescription: "A long downward lance that spikes and stuns.",
     downAirDamage: 14,
-    downAirStun: 0.88,
+    downAirStun: 1.24,
     specialDescription:
       "Launch a concentrated solar lance; aim before releasing.",
     ultimateDescription:
@@ -191,7 +191,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Canopy crash",
     downAirDescription: "A crushing drop.",
     downAirDamage: 16,
-    downAirStun: 0.95,
+    downAirStun: 1.31,
     specialDescription: "A wide root-powered slam.",
     ultimateDescription: "A huge radial solar shockwave.",
   },
@@ -213,7 +213,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Glass comet",
     downAirDescription: "A piercing fall.",
     downAirDamage: 17,
-    downAirStun: 0.9,
+    downAirStun: 1.26,
     specialDescription: "A concentrated mirror bolt.",
     ultimateDescription: "A giant unstable prism.",
   },
@@ -235,7 +235,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Crownfall",
     downAirDescription: "A molten downward hammer.",
     downAirDamage: 20,
-    downAirStun: 1,
+    downAirStun: 1.36,
     specialDescription: "A rising furnace strike.",
     ultimateDescription: "A great ascending solar flame.",
   },
@@ -257,7 +257,7 @@ export const FIGHTERS: Record<CombatantId, FighterDefinition> = {
     downAir: "Fallen sun",
     downAirDescription: "A devastating solar spike.",
     downAirDamage: 22,
-    downAirStun: 1.05,
+    downAirStun: 1.41,
     specialDescription: "A returning dark sun.",
     ultimateDescription: "A wide pulse of captured starlight.",
   },

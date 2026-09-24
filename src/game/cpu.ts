@@ -1,5 +1,6 @@
 import { archetype, isBoss, platformsAt, type Difficulty } from "./data.ts";
 import { WEAPONS } from "./equipment.ts";
+import { COMBAT } from "./tuning.ts";
 import { neutralInput, type Input, type WorldState } from "./simulation.ts";
 /** CPU observes positions and visible attacks, never the player’s keyboard state. */
 export class CpuController {
@@ -79,6 +80,15 @@ export class CpuController {
       enemy.x < floor[0].x ||
       enemy.x > floor[floor.length - 1].x + floor[floor.length - 1].width ||
       enemy.y > 560;
+    // Do not spend a jump press while hit-stun prevents the jump from starting.
+    if (f.stun > 0) {
+      input.move =
+        Math.sign(nearest.x + nearest.width / 2 - f.x) || -Math.sign(f.vx);
+      this.jumpUntil = 0;
+      this.guardUntil = 0;
+      this.input = input;
+      return { ...input };
+    }
     if (recovering) {
       input.move = Math.sign(nearest.x + nearest.width / 2 - f.x);
       if (f.vy > 30) {
@@ -132,7 +142,7 @@ export class CpuController {
         Math.abs(dx) < 135 &&
         Math.abs(enemy.y - f.y) < 150 &&
         (overFloor || (f.jumps > 0 && !f.recoveryUsed && f.y < 390)) &&
-        f.attackCooldown === 0 &&
+        f.attackCooldown <= COMBAT.attackBuffer &&
         this.random() < (this.difficulty === "expert" ? 0.72 : 0.4)
       ) {
         input.attack = true;
@@ -167,7 +177,7 @@ export class CpuController {
       else if (
         Math.abs(dx) < (ranged ? 470 : 100 + (weapon?.reach ?? 0)) &&
         Math.abs(enemy.y - f.y) < (ranged ? 230 : 100) &&
-        f.attackCooldown === 0 &&
+        f.attackCooldown <= COMBAT.attackBuffer &&
         this.random() < (this.difficulty === "expert" ? 0.96 : 0.77)
       )
         input.attack = true;
@@ -180,7 +190,8 @@ export class CpuController {
         this.random() < 0.23
       ) {
         input.ultimate = true;
-        this.releaseAt = now + 0.45 + this.random() * 0.55;
+        this.releaseAt =
+          now + 0.9 + this.random() * (COMBAT.ultimateCharge - 0.9);
       } else if (
         !input.guard &&
         !input.attack &&
@@ -232,12 +243,6 @@ export class CpuController {
     ) {
       input.move = 0;
       f.facing = Math.sign(dx) || f.facing;
-    }
-    // Directional influence steers toward the stage while launched; fast-fall resumes after stun.
-    if (f.stun > 0) {
-      const center = nearest.x + nearest.width / 2;
-      input.move = Math.sign(center - f.x) || -Math.sign(f.vx);
-      input.down = f.vy < -300;
     }
     input.jump ||= now < this.jumpUntil;
     input.guard ||= now < this.guardUntil;

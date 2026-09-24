@@ -167,7 +167,7 @@ test("all playable ultimates can be parried; projectile ultimates reflect owners
     assert.equal(result, "parry");
     assert.equal(target.damage, 0);
     assert.equal(target.parries, 1);
-    assert.equal(target.meter, 25);
+    assert.equal(target.meter, 10);
     if (a.projectile) {
       assert.equal(a.owner, 0);
       assert.ok(a.vx > 0);
@@ -300,7 +300,11 @@ test("timeout uses stocks then damage then draw; practice never ends or spends s
   tie.remaining = 0.001;
   steps(tie, 1);
   assert.equal(tie.winner, "draw");
-  const practice = createWorld({ ...config, mode: "training" });
+  const practice = createWorld({
+    ...config,
+    mode: "training",
+    practiceInfiniteMeter: true,
+  });
   practice.fighters[0].y = 950;
   steps(practice, 1);
   assert.equal(practice.fighters[0].stocks, 3);
@@ -325,7 +329,7 @@ test("hazards warn before damage, hit once per surge, and can be parried", () =>
   parry.fighters[0].parryWindow = 0.1;
   steps(parry, 1);
   assert.equal(parry.fighters[0].damage, 0);
-  assert.equal(parry.fighters[0].meter, 12);
+  assert.equal(parry.fighters[0].meter, 6);
 });
 test("frame steps are bounded and fixed-seed CPU simulations are deterministic", () => {
   function run() {

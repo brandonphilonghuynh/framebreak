@@ -1,4 +1,5 @@
 import { type CombatantId } from "./data.ts";
+import { COMBAT } from "./tuning.ts";
 export type WeaponShape =
   "blade" | "hammer" | "bow" | "spear" | "disc" | "claw";
 export interface Weapon {
@@ -75,7 +76,7 @@ export const GADGETS = ["repair", "capacitor", "aegis", "jet"] as const;
 export type GadgetId = (typeof GADGETS)[number];
 export const GADGET_NAMES: Record<GadgetId, string> = {
   repair: "Repair seed · −20% damage",
-  capacitor: "Sun cell · +35 meter",
+  capacitor: `Sun cell · +${COMBAT.meterPickup} meter`,
   aegis: "Aegis field · shield + protection",
   jet: "Updraft pack · restore recovery",
 };

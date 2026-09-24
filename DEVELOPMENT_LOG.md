@@ -14,6 +14,14 @@ In-app browser checks cover hub and boss contract rendering, free Solis trial, a
 
 Original generated artwork is bundled in public/art; built-in generation mode and prompt briefs are recorded in ASSET_LICENSES.md. No new runtime dependency was added. A one-time Prettier pass made the expanded source readable without adding a project dependency. The upload ZIP is approximately 12 MB. Itch.io publication has not been performed.
 
+## 2026-09-24 — Combat feel pass
+
+Responded to playtest feedback about fast ultimates, short combo openings and weak recovery. Ultimate full charge is now 2 seconds with a 0.5-second minimum release windup; meter gain is reduced to 0.35 per damage dealt and 0.12 per damage received. Ultimate hits do not refill the attacker's own meter. Practice no longer silently forces infinite meter: Flight check exposes an explicit Unlimited ultimate meter option.
+
+Jab chains now accept a 160 ms press buffer, use a 0.85-second combo window, reduce early-hit launch force and give the first two hits enough stun/recovery for a deliberate three-hit sequence. Holding J does not auto-combo. Normal hit-stun now has a 0.5–0.95 second floor/range; down-air stuns are 1.18–1.41 seconds, and repeat-spike grace increased to 1.8 seconds. Ground jump short-hop behavior is preserved, but air jumps retain full lift, move faster in the air and recovery rises farther. CPUs avoid wasting recovery jumps during hit-stun and use the same longer timings.
+
+Added `tests/combat-feel.test.ts`: 11 targeted checks for buffered combos, interrupted ultimate windups, meter pacing, stun grace, full-lift air jumps, ledge recovery for both sides across every arena, recovery special reach and practice-meter opt-in. The suite now totals 51 passing tests. The updated seeded 108-match sweep completed without timeouts; average simulation length is 46 seconds, with wins Vector 17, Rook 14, Nyx 20, Ember 13, Solis 26 and Astra 18. This is a stability signal, not a final human balance claim.
+
 ## 2026-09-23 — Version 0.1
 
 ### Completed
