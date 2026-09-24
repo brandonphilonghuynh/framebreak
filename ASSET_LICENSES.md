@@ -4,14 +4,14 @@
 
 The following project assets were generated with Codex's **built-in image generation tool** for this game on September 23, 2026. No fallback CLI, personal API key, stock library or downloaded game art was used.
 
-| Final project path | Content | Use |
-| --- | --- | --- |
-| `public/art/solstice-gardens.png` | Sunlit floating garden city | Hub and main arena backdrop |
-| `public/art/aurora-spires.png` | Futuristic orbital solar city | Aurora arena; tinted for Helios Foundry |
-| `public/art/solstice-crew.png` | Six portraits in a 3 × 2 atlas | Pilot cards, HUD and results |
-| `public/art/solstice-bosses.png` | Four portraits in a 2 × 2 atlas | Boss contracts, HUD and results |
+| Final project path                | Content                         | Use                                     |
+| --------------------------------- | ------------------------------- | --------------------------------------- |
+| `public/art/solstice-gardens.png` | Sunlit floating garden city     | Hub and main arena backdrop             |
+| `public/art/aurora-spires.png`    | Futuristic orbital solar city   | Aurora arena; tinted for Helios Foundry |
+| `public/art/solstice-crew.png`    | Six portraits in a 3 × 2 atlas  | Pilot cards, HUD and results            |
+| `public/art/solstice-bosses.png`  | Four portraits in a 2 × 2 atlas | Boss contracts, HUD and results         |
 
-The user's supplied images guided atmosphere and composition. Their pixels, logos, interface text and depicted characters are not bundled in the game. Generated PNGs are retained as delivered. The game selects atlas cells with CSS; environment tints are applied during rendering.
+The user's supplied images guided atmosphere and composition. Their pixels, logos, interface text and depicted characters are not bundled in the game. Generated PNGs are retained as delivered. The game clips atlas cells in nested SVG viewports, preserving aspect ratio; environment tints are applied during rendering.
 
 These are generated project assets, not third-party assets with an asserted stock/Creative Commons license. No claim is made that generated artwork is exclusive or eligible for copyright everywhere.
 
@@ -39,3 +39,7 @@ System Arial/Helvetica/monospace/sans-serif fonts are referenced, not distribute
 `public/THIRD_PARTY_LICENSES.txt` is copied into production and the upload ZIP. Preserve it when distributing the game.
 
 For future external assets, record creator, exact source, license/version, acquisition date, modifications and required attribution before bundling them.
+
+## Character overhaul asset audit
+
+The September 24 character pass reuses the original portraits and adjusts the established procedural rigs. No new raster character assets, external audio samples or font downloads were introduced. Full-body realistic animation is deferred pending the deliverables in ART_REQUIREMENTS.md.

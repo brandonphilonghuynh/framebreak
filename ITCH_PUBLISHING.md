@@ -24,9 +24,9 @@ The ZIP must contain `index.html`, `assets/`, `art/` and `THIRD_PARTY_LICENSES.t
 
 ## Suggested description
 
-> A brighter kind of battle. FRAMEBREAK is a solarpunk platform fighter with six pilots, moving skybridges and four formidable solar bosses. Earn Lumens in a competitive CPU circuit, recruit your crew and claim one-time boss bounties. Charge your signature move, control the air and turn even an ultimate aside with a perfect parry.
+> A brighter kind of battle. FRAMEBREAK is a solarpunk platform fighter with six pilots, moving skybridges and four formidable solar bosses. Earn Lumens in a competitive CPU circuit, recruit your crew and claim one-time boss bounties. Deploy your signature ability, control the air and turn even an ultimate aside with a perfect parry.
 
-Controls: A/D move; Space/W double-jump; S fast-fall/drop; J strike; Down+J stun aerial; hold/release K special; W+K recovery; L parry/shield; Shift dodge; hold/release I ultimate; E pickup; Esc/P pause.
+Controls: A/D move; Space/W jump (Ember triple-jumps); S fast-fall/drop; J strike; Down+J stun aerial; K special (hold/release for Astra); W+K recovery; L parry/shield; Shift dodge; hold/release I ultimate; E pickup; Esc/P pause.
 
 ## Troubleshooting
 

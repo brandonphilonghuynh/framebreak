@@ -753,7 +753,8 @@ function launch(w: WorldState, target: Fighter, attack: Attack) {
   if (!armored && target.stunGrace === 0) {
     target.vx = direction * force * Math.cos(attack.vertical);
     target.vy = -force * Math.sin(attack.vertical);
-    if (target.grounded) target.jumps = Math.min(target.jumps, physique(target.id).jumps - 1);
+    if (target.grounded)
+      target.jumps = Math.min(target.jumps, physique(target.id).jumps - 1);
     target.grounded = false;
     if (target.stun === 0)
       target.stun =

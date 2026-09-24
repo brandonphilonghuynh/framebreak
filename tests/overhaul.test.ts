@@ -493,15 +493,17 @@ test("every profile contains its own biography, mechanics, lore and mechanically
   }
 });
 
-test('walking or being hit off a platform preserves only the allotted mid-air jumps', () => {
+test("walking or being hit off a platform preserves only the allotted mid-air jumps", () => {
   for (const id of FIGHTER_IDS) {
-    const w = ready(id), f = w.fighters[0];
+    const w = ready(id),
+      f = w.fighters[0];
     f.x = 1005;
     step(w, 30, { move: 1 });
     assert.equal(f.grounded, false);
     assert.equal(f.jumps, PHYSIQUES[id].jumps - 1, id);
-    const struck = ready('vector', id);
-    const target = struck.fighters[1]; target.x = 740;
+    const struck = ready("vector", id);
+    const target = struck.fighters[1];
+    target.x = 740;
     applyAttack(struck, hit({ force: 300 }), target);
     assert.equal(target.jumps, PHYSIQUES[id].jumps - 1, id);
   }
