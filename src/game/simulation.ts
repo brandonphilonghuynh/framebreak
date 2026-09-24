@@ -20,6 +20,7 @@ import {
   type Pickup,
   type GadgetId,
 } from "./equipment.ts";
+import { physique, SPECIALS, ULTIMATES, type AbilityId } from "./roster.ts";
 import { COMBAT } from "./tuning.ts";
 export interface Input {
   move: number;
@@ -60,6 +61,16 @@ export interface Fighter {
   jumps: number;
   jumpCutAvailable: boolean;
   stun: number;
+  stunGrace: number;
+  armor: number;
+  dodgeCharges: number;
+  dodgeRegen: number;
+  ability: AbilityId | null;
+  abilityTime: number;
+  abilityAim: number;
+  abilityFacing: number;
+  ultimateReady: boolean;
+  ultimatesUsed: number;
   invulnerable: number;
   attackCooldown: number;
   attackBuffer: number;
@@ -123,6 +134,15 @@ export interface Attack {
   age?: number;
   color: number;
   charge: number;
+  effect?:
+    | "solar-beam"
+    | "star"
+    | "bulwark"
+    | "phoenix"
+    | "tidal-orb"
+    | "cataclysm";
+  originX?: number;
+  maxWidth?: number;
 }
 export interface GameEvent {
   type:
@@ -137,7 +157,9 @@ export interface GameEvent {
     | "dodge"
     | "hazard"
     | "pickup"
-    | "finish";
+    | "finish"
+    | "ability"
+    | "ready";
   x: number;
   y: number;
   side?: number;
@@ -160,7 +182,18 @@ export interface Config {
   opponentLevel?: number;
   matchId?: string;
 }
+export interface Field {
+  id: number;
+  owner: 0 | 1;
+  kind: "eclipse" | "vortex";
+  x: number;
+  y: number;
+  radius: number;
+  life: number;
+  hit: number[];
+}
 export interface WorldState {
+  fields: Field[];
   config: Config;
   fighters: [Fighter, Fighter];
   attacks: Attack[];
@@ -192,9 +225,19 @@ function makeFighter(id: CombatantId, side: 0 | 1): Fighter {
     meter: 0,
     shield: 100,
     grounded: false,
-    jumps: 2,
+    jumps: physique(id).jumps,
     jumpCutAvailable: false,
     stun: 0,
+    stunGrace: 0,
+    armor: 0,
+    dodgeCharges: physique(id).dodges,
+    dodgeRegen: 0,
+    ability: null,
+    abilityTime: 0,
+    abilityAim: 0,
+    abilityFacing: 1,
+    ultimateReady: false,
+    ultimatesUsed: 0,
     invulnerable: 1.8,
     attackCooldown: 0,
     attackBuffer: 0,
@@ -235,6 +278,7 @@ export function createWorld(config: Config): WorldState {
     config: { ...config },
     fighters: [makeFighter(config.player, 0), makeFighter(config.cpu, 1)],
     attacks: [],
+    fields: [],
     events: [],
     time: 0,
     remaining: 180,
@@ -250,7 +294,7 @@ export function createWorld(config: Config): WorldState {
     bossPhase: 1,
   };
   if (config.mode === "boss") w.fighters[1].stocks = 2;
-  if (config.mode === "training") w.fighters[0].meter = 100;
+  if (config.mode === "training") w.fighters[0].meter = COMBAT.ultimateCost;
   return w;
 }
 const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v));
@@ -314,15 +358,79 @@ function releaseCharge(w: WorldState, f: Fighter) {
     0,
     1,
   );
+  if (kind === "ultimate" && f.id === "rook" && !f.grounded) {
+    // Cataclysm lands before the quake; never create a floating ground attack.
+    f.vy = Math.max(f.vy, 400);
+    return;
+  }
   f.charge = null;
   f.chargeTime = 0;
   f.pose = kind;
   f.poseTime = 0.4;
   f.attackCooldown = 0.4;
   if (kind === "ultimate") {
-    if (f.meter < 100) return;
+    if (f.meter < COMBAT.ultimateCost) return;
     f.meter = 0;
-    f.specialCooldown = 0.8;
+    f.ultimatesUsed++;
+    if (!isBoss(f.id)) {
+      const spec = ULTIMATES[f.id];
+      // Two pulses together cost 150–200% of a heavy (third jab + heavy gear).
+      const heavy =
+        FIGHTERS[f.id].damage +
+        3 +
+        Math.max(...SIGNATURES[f.id].map((weapon) => weapon.damage));
+      const common = {
+        kind: "ultimate" as const,
+        damage: (heavy * spec.multiplier * (0.83 + charge * 0.17)) / 2,
+        force: spec.force + charge * 65,
+        charge,
+        life: spec.life,
+      };
+      if (f.id === "rook") {
+        spawn(w, f, {
+          ...common,
+          x: f.x,
+          y: f.y - 24,
+          width: 180,
+          height: 48,
+          life: 0.7,
+          vertical: 0.85,
+          effect: "cataclysm",
+          originX: f.x,
+          maxWidth: spec.range,
+        });
+        f.attackCooldown = 0.75;
+        f.poseTime = 0.6;
+      } else if (f.id === "ember") {
+        f.vy = -320;
+        spawn(w, f, {
+          ...common,
+          x: f.x + f.facing * 70,
+          y: f.y - 70,
+          vx: f.facing * spec.vx,
+          vy: spec.vy,
+          width: spec.width,
+          height: spec.height,
+          projectile: true,
+          vertical: 1.1,
+          effect: "phoenix",
+        });
+      } else {
+        spawn(w, f, {
+          ...common,
+          x: f.x + f.facing * 70,
+          y: f.y - 50,
+          vx: f.facing * spec.vx,
+          vy: spec.vy,
+          width: spec.width,
+          height: spec.height,
+          life: spec.life,
+          projectile: true,
+          vertical: f.id === "astra" ? 0.85 : 0.55,
+        });
+      }
+      return;
+    }
     const common = {
       kind: "ultimate" as const,
       damage: 28 + charge * 17,
@@ -373,7 +481,7 @@ function releaseCharge(w: WorldState, f: Fighter) {
         life: 1.35,
       });
   } else {
-    f.specialCooldown = 0.65;
+    if (isBoss(f.id)) f.specialCooldown = 0.65;
     if (f.chargeRecovery) {
       f.vy = -COMBAT.recoveryRise - charge * COMBAT.recoveryChargeRise;
       f.vx = f.facing * COMBAT.recoveryDrift;
@@ -450,56 +558,232 @@ function releaseCharge(w: WorldState, f: Fighter) {
   }
   f.chargeRecovery = false;
 }
+function updateAbility(w: WorldState, f: Fighter, input: Input, dt: number) {
+  const id = f.ability;
+  if (!id) return;
+  f.abilityTime += dt;
+  const spec = SPECIALS[id];
+  if (id === "astra") f.abilityAim = input.down ? 0.6 : 0;
+  if (f.abilityTime < spec.windup) return;
+  if (id === "astra" && input.special && f.abilityTime < 1) {
+    f.abilityAim = input.down ? 0.6 : 0;
+    return;
+  }
+  const direction = f.abilityFacing;
+  f.ability = null;
+  f.pose = "special";
+  f.poseTime = 0.38;
+  f.attackCooldown = id === "ember" ? 0.4 : 0.32;
+  const common = {
+    kind: "special" as const,
+    direction,
+    color: FIGHTERS[f.id].color,
+  };
+  if (id === "vector")
+    spawn(w, f, {
+      ...common,
+      effect: "solar-beam",
+      x: f.x + direction * 235,
+      y: f.y - 58,
+      width: 430,
+      height: 28,
+      damage: 15,
+      force: 230,
+      vertical: 0.35,
+      life: 0.16,
+    });
+  if (id === "nyx")
+    [-1, 0, 1].forEach((lane) =>
+      spawn(w, f, {
+        ...common,
+        effect: "star",
+        x: f.x + direction * 38,
+        y: f.y - 58 + lane * 20,
+        vx: direction * (490 - Math.abs(lane) * 35),
+        vy: lane * 105,
+        width: 28,
+        height: 28,
+        damage: 5,
+        force: 115,
+        vertical: 0.4,
+        projectile: true,
+        life: 1.1,
+      }),
+    );
+  if (id === "rook")
+    spawn(w, f, {
+      ...common,
+      effect: "bulwark",
+      x: f.x,
+      y: f.y - 48,
+      width: 290,
+      height: 96,
+      damage: 14,
+      force: 310,
+      vertical: 0.6,
+      life: 0.22,
+    });
+  if (id === "ember") {
+    f.vx = direction * 820;
+    f.vy *= 0.3;
+    f.dashTime = 0.23;
+    spawn(w, f, {
+      ...common,
+      effect: "phoenix",
+      follow: true,
+      width: 80,
+      height: 76,
+      damage: 12,
+      force: 230,
+      vertical: 0.45,
+      life: 0.23,
+    });
+  }
+  if (id === "solis")
+    w.fields.push({
+      id: w.nextId++,
+      owner: f.side,
+      kind: "eclipse",
+      x: f.x,
+      y: f.y - 50,
+      radius: 150,
+      life: 2.6,
+      hit: [],
+    });
+  if (id === "astra")
+    spawn(w, f, {
+      ...common,
+      effect: "tidal-orb",
+      x: f.x + direction * 40,
+      y: f.y - 58,
+      vx: direction * (f.abilityAim ? 400 : 520),
+      vy: f.abilityAim * 500,
+      width: 54,
+      height: 54,
+      damage: 12,
+      force: 145,
+      vertical: 0.7,
+      projectile: true,
+      life: 0.9,
+    });
+}
+function updateFields(w: WorldState, dt: number) {
+  for (const field of w.fields) {
+    field.life -= dt;
+    if (field.life <= 0 || field.kind !== "vortex") continue;
+    for (const target of w.fighters) {
+      if (target.side === field.owner || target.invulnerable > 0) continue;
+      const dx = field.x - target.x,
+        dy = field.y - (target.y - 50);
+      if (Math.hypot(dx, dy) > field.radius) continue;
+      // Bounded acceleration, weaker than player steering: never a root.
+      target.vx += Math.sign(dx) * 150 * dt;
+      if (!field.hit.includes(target.side)) {
+        const a: Attack = {
+          id: field.id,
+          owner: field.owner,
+          kind: "special",
+          x: field.x,
+          y: field.y,
+          vx: 0,
+          vy: 0,
+          width: 180,
+          height: 180,
+          life: 1,
+          damage: 12,
+          force: 110,
+          vertical: 0.7,
+          direction: Math.sign(dx) || 1,
+          projectile: false,
+          follow: false,
+          hit: [],
+          color: 0x6be5f4,
+          charge: 0,
+        };
+        const result = applyAttack(w, a, target);
+        if (result !== "ignore") field.hit.push(target.side);
+        if (result === "parry") field.life = 0;
+      }
+    }
+  }
+  w.fields = w.fields.filter((field) => field.life > 0);
+}
 function launch(w: WorldState, target: Fighter, attack: Attack) {
   const owner = w.fighters[attack.owner];
-  target.damage = clamp(target.damage + attack.damage, 0, 999);
-  target.damageTaken += attack.damage;
-  owner.damageDealt += attack.damage;
+  const inEclipse = w.fields.some(
+    (field) =>
+      field.kind === "eclipse" &&
+      field.owner === target.side &&
+      Math.hypot(target.x - field.x, target.y - 50 - field.y) < field.radius,
+  );
+  const armored = target.armor > 0 && attack.kind !== "ultimate";
+  const falloff =
+    attack.effect === "cataclysm"
+      ? clamp(
+          1 - Math.abs(target.x - (attack.originX ?? attack.x)) / 650,
+          0.55,
+          1,
+        )
+      : 1;
+  const damage =
+    attack.damage *
+    physique(target.id).damageTaken *
+    (armored ? 0.7 : inEclipse ? 0.8 : 1) *
+    falloff;
+  target.damage = clamp(target.damage + damage, 0, 999);
+  target.damageTaken += damage;
+  owner.damageDealt += damage;
   owner.comboHits = w.time - owner.comboAt < 0.9 ? owner.comboHits + 1 : 1;
   owner.comboAt = w.time;
   owner.bestCombo = Math.max(owner.bestCombo, owner.comboHits);
   const force =
-    (attack.force * (1 + target.damage / 100)) / FIGHTERS[target.id].weight;
+    (attack.force *
+      falloff *
+      (inEclipse ? 0.85 : 1) *
+      (1 + target.damage / 100)) /
+    FIGHTERS[target.id].weight;
   const direction = attack.projectile
     ? Math.sign(attack.vx) || attack.direction
-    : attack.kind === "ultimate" && archetype(owner.id) === "rook"
+    : (attack.kind === "ultimate" && archetype(owner.id) === "rook") ||
+        attack.effect === "bulwark"
       ? Math.sign(target.x - owner.x) || attack.direction
       : attack.direction;
-  target.vx = direction * force * Math.cos(attack.vertical);
-  target.vy = -force * Math.sin(attack.vertical);
-  target.grounded = false;
-  target.stun = Math.max(
-    target.stun,
-    clamp(
-      Math.max(
-        attack.stun && target.airStunGrace === 0 ? attack.stun : 0,
-        0.5 + force / 1800,
-      ),
-      0.5,
-      attack.stun ? 1.5 : 0.95,
-    ),
-  );
-  if (attack.stun) target.airStunGrace = 1.8;
-  target.attackBuffer = 0;
-  target.attackAim = null;
-  target.jumpCutAvailable = false;
-  target.charge = null;
-  target.chargeTime = 0;
-  target.guarding = false;
-  target.dashTime = 0;
-  target.pose = "hurt";
-  target.poseTime = target.stun;
+  // Hits during a stun do not restart its clock. On expiry, a brief grace period
+  // allows movement/defense even if another hitbox is still overlapping.
+  if (!armored && target.stunGrace === 0) {
+    target.vx = direction * force * Math.cos(attack.vertical);
+    target.vy = -force * Math.sin(attack.vertical);
+    if (target.grounded) target.jumps = Math.min(target.jumps, physique(target.id).jumps - 1);
+    target.grounded = false;
+    if (target.stun === 0)
+      target.stun =
+        attack.stun && target.airStunGrace === 0
+          ? attack.stun
+          : COMBAT.normalStun;
+    if (attack.stun) target.airStunGrace = 1.8;
+    target.attackBuffer = 0;
+    target.attackAim = null;
+    target.jumpCutAvailable = false;
+    target.charge = null;
+    target.chargeTime = 0;
+    target.ability = null;
+    target.armor = 0;
+    target.guarding = false;
+    target.dashTime = 0;
+    target.pose = "hurt";
+    target.poseTime = target.stun;
+  }
   // An ultimate cannot immediately fund its next use through its own two hits.
   if (attack.kind !== "ultimate")
     owner.meter = clamp(
-      owner.meter + attack.damage * COMBAT.meterOnHit,
+      owner.meter + damage * COMBAT.meterOnHit,
       0,
-      100,
+      COMBAT.ultimateCost,
     );
   target.meter = clamp(
-    target.meter + attack.damage * COMBAT.meterOnDamage,
+    target.meter + damage * COMBAT.meterOnDamage,
     0,
-    100,
+    COMBAT.ultimateCost,
   );
   owner.hits++;
   w.hitstop = attack.kind === "ultimate" ? 0.085 : 0.045;
@@ -508,7 +792,7 @@ function launch(w: WorldState, target: Fighter, attack: Attack) {
     x: target.x,
     y: target.y - 42,
     side: target.side,
-    amount: Math.round(attack.damage),
+    amount: Math.round(damage),
     ultimate: attack.kind === "ultimate",
   });
 }
@@ -536,14 +820,21 @@ export function applyAttack(
   if (target.stun === 0 && target.parryWindow > 0 && facing) {
     const owner = w.fighters[attack.owner];
     target.parries++;
-    target.meter = clamp(target.meter + COMBAT.meterOnParry, 0, 100);
+    target.meter = clamp(
+      target.meter + COMBAT.meterOnParry,
+      0,
+      COMBAT.ultimateCost,
+    );
     target.shield = clamp(target.shield + 14, 0, 100);
     target.invulnerable = 0.18;
     target.parryWindow = 0;
     target.pose = "parry";
     target.poseTime = 0.35;
     w.hitstop = 0.09;
-    owner.stun = Math.max(owner.stun, 0.7);
+    if (owner.stun === 0 && owner.stunGrace === 0)
+      owner.stun = COMBAT.normalStun;
+    owner.ability = null;
+    owner.armor = 0;
     owner.attackBuffer = 0;
     owner.attackAim = null;
     owner.charge = null;
@@ -581,13 +872,17 @@ export function applyAttack(
   if (target.guarding && facing && attack.kind !== "ultimate") {
     target.shield -= attack.damage * 2.4;
     target.vx = attack.direction * 100;
-    target.meter = clamp(target.meter + COMBAT.meterOnGuard, 0, 100);
+    target.meter = clamp(
+      target.meter + COMBAT.meterOnGuard,
+      0,
+      COMBAT.ultimateCost,
+    );
     if (target.shield <= 0) {
       target.shield = 0;
-      target.stun = 1.4;
+      target.stun = 0.8;
       target.guarding = false;
       target.pose = "hurt";
-      target.poseTime = 1.4;
+      target.poseTime = 0.8;
       emit(w, {
         type: "break",
         x: target.x,
@@ -628,6 +923,8 @@ function ringOut(w: WorldState, f: Fighter) {
   next.damageDealt = f.damageDealt;
   next.damageTaken = f.damageTaken;
   next.bestCombo = f.bestCombo;
+  next.ultimatesUsed = f.ultimatesUsed;
+  w.fields = w.fields.filter((field) => field.owner !== f.side);
   next.invulnerable = 2.3;
   Object.assign(f, next);
   w.attacks = w.attacks.filter((a) => a.owner !== f.side);
@@ -720,12 +1017,12 @@ function updatePickups(w: WorldState, pressed: boolean[], dt: number) {
     if (p.type === "weapon") f.weapon = p.item;
     else if (p.item === "repair") f.damage = Math.max(0, f.damage - 20);
     else if (p.item === "capacitor")
-      f.meter = Math.min(100, f.meter + COMBAT.meterPickup);
+      f.meter = Math.min(COMBAT.ultimateCost, f.meter + COMBAT.meterPickup);
     else if (p.item === "aegis") {
       f.shield = 100;
       f.invulnerable = Math.max(f.invulnerable, 1);
     } else {
-      f.jumps = 2;
+      f.jumps = physique(f.id).jumps;
       f.recoveryUsed = false;
       f.vy = -450;
       f.grounded = false;
@@ -776,7 +1073,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
     const boss = w.fighters[1];
     if (boss.stocks < 2 || boss.damage > 85) w.bossPhase = 2;
     boss.meter = Math.min(
-      100,
+      COMBAT.ultimateCost,
       boss.meter +
         dt *
           (w.bossPhase === 2
@@ -789,9 +1086,14 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
   }
   w.fighters.forEach((f, i) => {
     const input = inputs[i],
-      def = FIGHTERS[f.id];
+      def = FIGHTERS[f.id],
+      body = physique(f.id);
+    const wasStunned = f.stun > 0;
+    const wasGrounded = f.grounded;
     for (const key of [
       "stun",
+      "stunGrace",
+      "armor",
       "invulnerable",
       "attackCooldown",
       "attackBuffer",
@@ -806,14 +1108,22 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       "airStunGrace",
     ] as const)
       f[key] = Math.max(0, f[key] - dt);
+    if (wasStunned && f.stun === 0) f.stunGrace = COMBAT.stunEscape;
+    if (f.dodgeCharges < body.dodges) {
+      f.dodgeRegen = Math.max(0, f.dodgeRegen - dt);
+      if (f.dodgeRegen === 0) {
+        f.dodgeCharges++;
+        if (f.dodgeCharges < body.dodges) f.dodgeRegen = body.dodgeRecharge;
+      }
+    }
     if (f.comboTimer === 0) f.combo = 0;
     const attached = f.grounded
       ? (f.platform ??
         previousPlatforms.findIndex(
           (p) =>
             Math.abs(f.y - p.y) < 1 &&
-            f.x + 18 > p.x &&
-            f.x - 18 < p.x + p.width,
+            f.x + body.hurtWidth / 2 > p.x &&
+            f.x - body.hurtWidth / 2 < p.x + p.width,
         ))
       : -1;
     if (attached !== null && attached >= 0 && previousPlatforms[attached]) {
@@ -825,8 +1135,9 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       w.config.practiceInfiniteMeter &&
       i === 0
     )
-      f.meter = 100;
-    f.guarding = input.guard && f.shield > 0 && f.stun === 0 && !f.charge;
+      f.meter = COMBAT.ultimateCost;
+    f.guarding =
+      input.guard && f.shield > 0 && f.stun === 0 && !f.charge && !f.ability;
     if (f.guarding) {
       f.attackBuffer = 0;
       f.shield = Math.max(0, f.shield - 15 * dt);
@@ -842,25 +1153,45 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       }
     } else f.shield = Math.min(100, f.shield + 13 * dt);
     if (f.stun === 0) {
-      if (input.move && !f.guarding) f.facing = Math.sign(input.move);
+      if (input.move && !f.guarding && !f.ability)
+        f.facing = Math.sign(input.move);
       if (f.dashTime === 0) {
         const speed =
           def.speed *
-          (f.grounded ? 1 : COMBAT.airSpeedMultiplier) *
+          (f.grounded ? 1 : body.airSpeed) *
           (isBoss(f.id) && w.bossPhase === 2 ? 1.13 : 1) *
-          (f.charge ? 0.32 : f.guarding ? 0.18 : 1);
+          (f.charge
+            ? 0.32
+            : f.ability
+              ? f.id === "astra"
+                ? 0.65
+                : 0.25
+              : f.guarding
+                ? 0.18
+                : 1) *
+          (w.fields.some(
+            (field) =>
+              field.kind === "eclipse" &&
+              field.owner !== f.side &&
+              Math.hypot(f.x - field.x, f.y - 50 - field.y) < field.radius,
+          )
+            ? 0.75
+            : 1);
         const target = clamp(input.move, -1, 1) * speed;
-        f.vx += (target - f.vx) * Math.min(1, dt * (f.grounded ? 16 : 6.5));
+        f.vx +=
+          (target - f.vx) *
+          Math.min(1, dt * (f.grounded ? body.acceleration : body.airControl));
       }
       if (
         input.jump &&
         !f.last.jump &&
         f.jumps > 0 &&
         !f.guarding &&
-        !f.charge
+        !f.charge &&
+        !f.ability
       ) {
         f.jumpCutAvailable = f.grounded;
-        f.vy = -(f.grounded ? def.jump : def.jump * COMBAT.airJumpMultiplier);
+        f.vy = -(f.grounded ? def.jump : def.jump * body.airJump);
         f.jumps--;
         f.grounded = false;
         f.pose = "jump";
@@ -886,12 +1217,16 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         input.dodge &&
         !f.last.dodge &&
         f.dodgeCooldown === 0 &&
+        f.dodgeCharges > 0 &&
         f.shield >= 18 &&
-        !f.charge
+        !f.charge &&
+        !f.ability
       ) {
         f.invulnerable = 0.24;
         f.attackBuffer = 0;
-        f.dodgeCooldown = 0.95;
+        f.dodgeCooldown = 0.28;
+        f.dodgeCharges--;
+        if (f.dodgeRegen === 0) f.dodgeRegen = body.dodgeRecharge;
         f.shield -= 18;
         f.vx = (input.move || f.facing) * 590;
         f.dashTime = 0.2;
@@ -899,11 +1234,12 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         f.poseTime = 0.24;
         emit(w, { type: "dodge", x: f.x, y: f.y - 35, side: f.side });
       }
-      if (!f.guarding && f.dashTime === 0) {
+      if (f.ability) updateAbility(w, f, input, dt);
+      if (!f.guarding && f.dashTime === 0 && !f.ability) {
         if (
           input.ultimate &&
           !f.last.ultimate &&
-          f.meter >= 100 &&
+          f.meter >= COMBAT.ultimateCost &&
           f.attackCooldown === 0 &&
           !f.charge
         ) {
@@ -921,17 +1257,36 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         } else if (
           input.special &&
           !f.last.special &&
-          f.specialCooldown === 0 &&
+          (input.up ? !f.recoveryUsed : f.specialCooldown === 0) &&
           f.attackCooldown === 0 &&
           !f.charge &&
           (!input.up || !f.recoveryUsed)
         ) {
-          f.charge = "special";
-          f.chargeTime = 0;
-          f.chargeReleased = false;
-          f.attackBuffer = 0;
-          f.chargeRecovery = input.up;
-          emit(w, { type: "charge", x: f.x, y: f.y - 40, side: f.side });
+          if (!input.up && !isBoss(f.id)) {
+            f.ability = f.id;
+            f.abilityTime = 0;
+            f.abilityFacing = f.facing;
+            f.abilityAim = input.down ? 0.6 : 0;
+            f.specialCooldown = SPECIALS[f.id].cooldown;
+            f.attackBuffer = 0;
+            f.armor = f.id === "rook" ? SPECIALS.rook.windup + 0.1 : 0;
+            f.pose = "special-windup";
+            f.poseTime = SPECIALS[f.id].windup;
+            emit(w, {
+              type: "ability",
+              x: f.x,
+              y: f.y - 55,
+              side: f.side,
+              text: SPECIALS[f.id].name,
+            });
+          } else {
+            f.charge = "special";
+            f.chargeTime = 0;
+            f.chargeReleased = false;
+            f.attackBuffer = 0;
+            f.chargeRecovery = input.up;
+            emit(w, { type: "charge", x: f.x, y: f.y - 40, side: f.side });
+          }
         }
         if (f.charge) {
           f.chargeTime = Math.min(
@@ -944,10 +1299,12 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
             f.chargeReleased = true;
           if (
             f.chargeReleased &&
-            (f.charge !== "ultimate" || f.chargeTime >= COMBAT.ultimateWindup)
+            (f.charge !== "ultimate" ||
+              f.chargeTime >=
+                (isBoss(f.id) ? COMBAT.ultimateWindup : ULTIMATES[f.id].windup))
           )
             releaseCharge(w, f);
-        } else if (f.attackBuffer > 0 && f.attackCooldown === 0) {
+        } else if (!f.ability && f.attackBuffer > 0 && f.attackCooldown === 0) {
           const aim = f.attackAim ?? input;
           f.attackBuffer = 0;
           f.attackAim = null;
@@ -997,8 +1354,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
             y: f.y + (downAerial ? 18 : aim.up ? -90 : -48),
             width: ranged
               ? 44
-              : (downAerial ? 96 : archetype(f.id) === "rook" ? 108 : 86) +
-                (weapon?.reach ?? 0),
+              : (downAerial ? 96 : body.reach) + (weapon?.reach ?? 0),
             height: downAerial ? 88 : f.grounded ? 66 : 105,
             stun: downAerial ? def.downAirStun : undefined,
             vx: ranged ? aimX * 570 : 0,
@@ -1014,6 +1370,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
     } else {
       f.vx += input.move * dt * 95;
       f.charge = null;
+      f.ability = null;
       f.chargeTime = 0;
       f.parryWindow = 0;
     }
@@ -1038,30 +1395,33 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
             (attached === index ? platform.y : previousPlatforms[index].y) +
               0.5 &&
           f.y >= platform.y &&
-          f.x + 18 > platform.x &&
-          f.x - 18 < platform.x + platform.width
+          f.x + body.hurtWidth / 2 > platform.x &&
+          f.x - body.hurtWidth / 2 < platform.x + platform.width
         ) {
           f.y = platform.y;
           f.vy = 0;
           f.grounded = true;
           f.platform = index;
-          f.jumps = 2;
+          f.jumps = physique(f.id).jumps;
           f.recoveryUsed = false;
           break;
         }
       }
     }
+    if (wasGrounded && !f.grounded) f.jumps = Math.min(f.jumps, body.jumps - 1);
     if (f.grounded && f.stun > 0) f.vx *= Math.pow(0.09, dt);
     if (f.poseTime === 0)
-      f.pose = f.charge
-        ? "charge"
-        : f.guarding
-          ? "guard"
-          : !f.grounded
-            ? "jump"
-            : Math.abs(f.vx) > 35
-              ? "run"
-              : "idle";
+      f.pose = f.ability
+        ? "special-windup"
+        : f.charge
+          ? "charge"
+          : f.guarding
+            ? "guard"
+            : !f.grounded
+              ? "jump"
+              : Math.abs(f.vx) > 35
+                ? "run"
+                : "idle";
     f.last = { ...input };
   });
   for (const attack of w.attacks) {
@@ -1077,20 +1437,62 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
       attack.hitCooldown = attack.hitCooldown.map((value) =>
         Math.max(0, value - dt),
       );
+    if (attack.effect === "cataclysm")
+      attack.width = Math.min(attack.maxWidth ?? 850, 180 + attack.age * 1600);
+    if (
+      attack.effect === "tidal-orb" &&
+      (attack.age >= 0.6 || attack.hit.length > 0)
+    ) {
+      w.fields.push({
+        id: w.nextId++,
+        owner: attack.owner,
+        kind: "vortex",
+        x: attack.x,
+        y: attack.y,
+        radius: 90,
+        life: 1.25,
+        hit: [...attack.hit],
+      });
+      attack.life = 0;
+    }
     if (attack.life <= 0) continue;
     if (attack.follow) {
       const f = w.fighters[attack.owner];
-      attack.x = f.x + f.facing * 44;
+      attack.x = f.x + attack.direction * 44;
       attack.y = f.y - 52;
     } else {
       attack.x += attack.vx * dt;
       attack.y += attack.vy * dt;
     }
+    if (attack.effect === "tidal-orb" && attack.vy > 0) {
+      const floor = platforms.find(
+        (p) =>
+          attack.x >= p.x &&
+          attack.x <= p.x + p.width &&
+          attack.y + attack.height / 2 >= p.y &&
+          attack.y - attack.vy * dt + attack.height / 2 < p.y,
+      );
+      if (floor) {
+        attack.y = floor.y - 45;
+        attack.vx = 0;
+        attack.vy = 0;
+        attack.age = 0.6;
+      }
+    }
     for (const target of w.fighters) {
       if (attack.owner === target.side) continue;
+      // The quake travels past each location; jumping over its front is real counterplay.
       if (
-        Math.abs(attack.x - target.x) < attack.width / 2 + 22 &&
-        Math.abs(attack.y - (target.y - 42)) < attack.height / 2 + 40
+        attack.effect === "cataclysm" &&
+        (attack.age ?? 0) > 0.18 &&
+        Math.abs(target.x - attack.x) < attack.width / 2 - 110
+      )
+        continue;
+      if (
+        Math.abs(attack.x - target.x) <
+          attack.width / 2 + physique(target.id).hurtWidth / 2 &&
+        Math.abs(attack.y - (target.y - physique(target.id).hurtHeight / 2)) <
+          attack.height / 2 + physique(target.id).hurtHeight / 2
       ) {
         const result = applyAttack(w, attack, target);
         if (result === "parry") break;
@@ -1098,6 +1500,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
     }
   }
   w.attacks = w.attacks.filter((a) => a.life > 0 && a.x > -400 && a.x < 1600);
+  updateFields(w, dt);
   if (w.config.equipment) updatePickups(w, pickupPressed, dt);
   if (w.config.hazards) {
     const cycle = Math.floor(w.time / 12),
@@ -1116,7 +1519,11 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
           continue;
         w.hazardHit.push(f.side);
         if (f.parryWindow > 0) {
-          f.meter = clamp(f.meter + COMBAT.meterOnHazardParry, 0, 100);
+          f.meter = clamp(
+            f.meter + COMBAT.meterOnHazardParry,
+            0,
+            COMBAT.ultimateCost,
+          );
           f.parries++;
           emit(w, {
             type: "parry",
@@ -1129,7 +1536,8 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
           f.damage += 9;
           f.damageTaken += 9;
           f.vy = -450;
-          f.stun = 0.22;
+          if (f.stun === 0 && f.stunGrace === 0) f.stun = COMBAT.normalStun;
+          f.ability = null;
           f.charge = null;
           emit(w, {
             type: "hazard",
@@ -1141,6 +1549,18 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         }
       }
     }
+  }
+  for (const f of w.fighters) {
+    const ready = f.meter >= COMBAT.ultimateCost;
+    if (ready && !f.ultimateReady)
+      emit(w, {
+        type: "ready",
+        x: f.x,
+        y: f.y - 120,
+        side: f.side,
+        text: `${FIGHTERS[f.id].ultimate} ready`,
+      });
+    f.ultimateReady = ready;
   }
   // Ring-outs are checked together so a same-frame double KO can be a draw.
   for (const f of w.fighters)

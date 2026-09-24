@@ -1,3 +1,4 @@
+import { type CombatantId } from "./data.ts";
 /** Original Web Audio score and effects; no samples, network or autoplay. */
 export class CombatAudio {
   private context: AudioContext | null = null;
@@ -73,8 +74,30 @@ export class CombatAudio {
     }
     this.tone(notes[index % 8] * 2, now, 0.24, 0.01, "sine");
   }
+  ability(id: CombatantId, ultimate: boolean) {
+    if (!this.enabled || !this.context || this.context.state !== "running")
+      return;
+    const pitches: Record<string, number[]> = {
+      vector: [330, 660, 990],
+      rook: [82, 65, 49],
+      nyx: [740, 1109, 1480],
+      ember: [220, 440, 880],
+      solis: [147, 220, 294],
+      astra: [523, 784, 659],
+    };
+    (pitches[id] ?? [130, 196, 260]).forEach((frequency, i) =>
+      this.tone(
+        frequency * (ultimate ? 0.75 : 1),
+        this.context!.currentTime + i * 0.05,
+        ultimate ? 0.4 : 0.2,
+        0.03,
+        id === "rook" ? "triangle" : "sine",
+      ),
+    );
+  }
   play(
     kind:
+      | "ready"
       | "select"
       | "hit"
       | "parry"
@@ -91,7 +114,7 @@ export class CombatAudio {
     if (kind === "hit" && now - this.lastHit < 0.05) return;
     if (kind === "hit") this.lastHit = now;
     const tones =
-      kind === "win"
+      kind === "win" || kind === "ready"
         ? [392, 494, 587, 784]
         : kind === "lose"
           ? [220, 174, 130]

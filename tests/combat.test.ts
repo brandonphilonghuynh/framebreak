@@ -1,3 +1,5 @@
+import { COMBAT } from "../src/game/tuning.ts";
+import { SPECIALS } from "../src/game/roster.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -120,20 +122,20 @@ test("landing restores recovery and jumps across all arenas", () => {
     assert.equal(f.recoveryUsed, false);
   }
 });
-test("charged special release has more damage than a tap for every fighter", () => {
+test("signature activation uses individual cooldowns instead of generic charging", () => {
   for (const id of FIGHTER_IDS) {
-    const low = ready(id),
-      high = ready(id);
-    low.fighters[1].x = 1100;
-    high.fighters[1].x = 1100;
-    steps(low, 1, { special: true });
-    steps(low, 1);
-    steps(high, 75, { special: true });
-    steps(high, 1);
-    assert.ok(low.attacks.length);
-    assert.ok(high.attacks.length);
-    assert.ok(high.attacks[0].damage > low.attacks[0].damage + 8, id);
-    assert.equal(high.fighters[0].charge, null);
+    const w = ready(id);
+    w.fighters[1].x = 1150;
+    steps(w, 1, { special: true });
+    assert.equal(w.fighters[0].ability, id);
+    assert.equal(w.fighters[0].charge, null);
+    assert.equal(w.fighters[0].specialCooldown, SPECIALS[id].cooldown);
+    steps(w, 35);
+    assert.equal(w.fighters[0].ability, null);
+    assert.ok(w.fighters[0].specialCooldown > 0);
+    const count = w.nextId;
+    steps(w, 1, { special: true });
+    assert.equal(w.nextId, count, id);
   }
 });
 test("ultimate requires full meter and release spends it for all characters", () => {
@@ -143,7 +145,7 @@ test("ultimate requires full meter and release spends it for all characters", ()
     steps(w, 1, { ultimate: true });
     assert.equal(w.fighters[0].charge, null);
     steps(w, 1);
-    w.fighters[0].meter = 100;
+    w.fighters[0].meter = COMBAT.ultimateCost;
     steps(w, 50, { ultimate: true });
     assert.equal(w.fighters[0].charge, "ultimate");
     steps(w, 1);
@@ -212,7 +214,7 @@ test("depleted shield breaks, dodge spends shield and prevents hits briefly", ()
   f.facing = 1;
   assert.equal(applyAttack(w, attack(w), f), "guard");
   assert.equal(f.shield, 0);
-  assert.ok(f.stun >= 1);
+  assert.equal(f.stun, 0.8);
   assert.equal(f.guarding, false);
   const second = ready();
   steps(second, 1, { dodge: true });
@@ -310,7 +312,7 @@ test("timeout uses stocks then damage then draw; practice never ends or spends s
   assert.equal(practice.fighters[0].stocks, 3);
   assert.equal(practice.winner, null);
   steps(practice, 1);
-  assert.equal(practice.fighters[0].meter, 100);
+  assert.equal(practice.fighters[0].meter, COMBAT.ultimateCost);
 });
 test("hazards warn before damage, hit once per surge, and can be parried", () => {
   const w = ready();
@@ -423,7 +425,7 @@ test("expert CPU chooses a directional down-air when edgeguarding below", () => 
 test("actual charged ultimates collide with a freshly timed parry for every fighter", () => {
   for (const id of FIGHTER_IDS) {
     const w = ready("vector", id);
-    w.fighters[1].meter = 100;
+    w.fighters[1].meter = COMBAT.ultimateCost;
     steps(w, 60, {}, { ultimate: true });
     assert.equal(w.fighters[1].charge, "ultimate", id);
     steps(w, 1, { guard: true });
@@ -451,7 +453,7 @@ test("every fighter has a diagonal down-air that stuns", () => {
     tick(w, [input, neutralInput()]);
     assert.equal(w.attacks[0]?.direction, 1, id);
     assert.equal(w.attacks[0]?.vertical, -0.8, id);
-    assert.ok(target.stun >= 0.82, id);
+    assert.ok(target.stun === 0.65, id);
     assert.equal(attacker.pose, "down-attack", id);
   }
 });

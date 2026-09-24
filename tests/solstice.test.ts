@@ -1,3 +1,4 @@
+import { physique } from "../src/game/roster.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -172,7 +173,7 @@ test("all twelve signature weapons change attacks and ranged weapons aim diagona
       if (["bow", "disc"].includes(weapon.shape)) {
         assert.ok(a.projectile);
         assert.ok(a.vx > 0 && a.vy < 0);
-      } else assert.ok(a.width > 86);
+      } else assert.ok(a.width > physique(id).reach);
     }
 });
 test("lingering ultimates hit twice at a timed interval, never every frame or a third time", () => {
@@ -193,11 +194,20 @@ test("lingering ultimates hit twice at a timed interval, never every frame or a 
     }),
   ];
   steps(w, 1);
-  assert.equal(w.fighters[1].damage, 12);
+  assert.equal(
+    w.fighters[1].damage,
+    12 * physique(w.fighters[1].id).damageTaken,
+  );
   steps(w, 5);
-  assert.equal(w.fighters[1].damage, 12);
+  assert.equal(
+    w.fighters[1].damage,
+    12 * physique(w.fighters[1].id).damageTaken,
+  );
   steps(w, 100);
-  assert.equal(w.fighters[1].damage, 24);
+  assert.equal(
+    w.fighters[1].damage,
+    24 * physique(w.fighters[1].id).damageTaken,
+  );
   assert.equal(w.fighters[0].hits, 2);
 });
 test("post-match total damage and combo records survive a stock loss", () => {
@@ -205,14 +215,23 @@ test("post-match total damage and combo records survive a stock loss", () => {
   w.fighters[1].invulnerable = 0;
   applyAttack(w, strike(w), w.fighters[1]);
   applyAttack(w, strike(w, { id: 1000 }), w.fighters[1]);
-  assert.equal(w.fighters[0].damageDealt, 20);
-  assert.equal(w.fighters[1].damageTaken, 20);
+  assert.equal(
+    w.fighters[0].damageDealt,
+    20 * physique(w.fighters[1].id).damageTaken,
+  );
+  assert.equal(
+    w.fighters[1].damageTaken,
+    20 * physique(w.fighters[1].id).damageTaken,
+  );
   assert.equal(w.fighters[0].bestCombo, 2);
   w.hitstop = 0;
   w.fighters[1].y = 1000;
   steps(w, 1);
   assert.equal(w.fighters[1].damage, 0);
-  assert.equal(w.fighters[1].damageTaken, 20);
+  assert.equal(
+    w.fighters[1].damageTaken,
+    20 * physique(w.fighters[1].id).damageTaken,
+  );
 });
 test("ranked rewards increase with opponent strength, and settlement is idempotent", () => {
   const p = newProfile(),

@@ -1,3 +1,4 @@
+import { COMBAT } from "../src/game/tuning.ts";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -113,42 +114,42 @@ test("expired buffered attacks do not emerge after a long stun", () => {
   assert.equal(w.nextId, 1);
 });
 
-test("down-air gives each pilot a longer setup while repeated spikes lose the full stun", () => {
+test("down-air gives a short setup without refreshing existing stun", () => {
   for (const id of FIGHTER_IDS) {
     const w = ready(id),
       f = w.fighters[1];
     applyAttack(w, strike({ stun: FIGHTERS[id].downAirStun }), f);
-    assert.ok(f.stun >= 1.18, id);
+    assert.ok(f.stun >= 0.65, id);
     applyAttack(w, strike({ id: 2, stun: FIGHTERS[id].downAirStun }), f);
-    assert.ok(f.stun >= 1.18, "A follow-up must not shorten existing stun");
+    assert.ok(f.stun >= 0.65, "A follow-up must not shorten existing stun");
     f.stun = 0.1;
     applyAttack(w, strike({ id: 3, stun: FIGHTERS[id].downAirStun }), f);
     assert.ok(f.stun < 0.6, id);
   }
 });
 
-test("tapped ultimates telegraph for half a second and can be interrupted before firing", () => {
+test("tapped ultimates respect their minimum windup and can be interrupted before firing", () => {
   for (const id of FIGHTER_IDS) {
     const w = ready(id);
     w.fighters[1].x = 1100;
     const f = w.fighters[0];
-    f.meter = 100;
+    f.meter = COMBAT.ultimateCost;
     step(w, { ultimate: true });
     for (let n = 0; n < 20; n++) step(w);
     assert.equal(w.attacks.length, 0, id);
-    assert.equal(f.meter, 100, id);
-    for (let n = 0; n < 12; n++) step(w);
+    assert.equal(f.meter, COMBAT.ultimateCost, id);
+    for (let n = 0; n < 24; n++) step(w);
     assert.equal(w.attacks[0].kind, "ultimate", id);
     assert.equal(f.meter, 0, id);
   }
   const w = ready();
-  w.fighters[0].meter = 100;
+  w.fighters[0].meter = COMBAT.ultimateCost;
   step(w, { ultimate: true });
   step(w);
   applyAttack(w, strike({ owner: 1 }), w.fighters[0]);
   for (let n = 0; n < 45; n++) step(w);
   assert.equal(w.fighters[0].charge, null);
-  assert.equal(w.fighters[0].meter, 100);
+  assert.equal(w.fighters[0].meter, COMBAT.ultimateCost);
   assert.equal(w.attacks.length, 0);
 });
 
@@ -157,7 +158,7 @@ test("full ultimate charge takes two seconds and the meter does not refill from 
     full = ready();
   for (const w of [half, full]) {
     w.fighters[1].x = 1100;
-    w.fighters[0].meter = 100;
+    w.fighters[0].meter = COMBAT.ultimateCost;
   }
   for (let n = 0; n < 60; n++) step(half, { ultimate: true });
   step(half);
@@ -167,8 +168,10 @@ test("full ultimate charge takes two seconds and the meter does not refill from 
   assert.equal(full.attacks[0].charge, 1);
   const w = ready();
   for (let n = 0; n < 10; n++) applyAttack(w, strike({ id: n }), w.fighters[1]);
-  assert.ok(w.fighters[0].meter <= 46);
-  assert.ok(w.fighters[1].meter <= 19);
+  assert.ok(
+    w.fighters[0].meter > 40 && w.fighters[0].meter <= COMBAT.ultimateCost,
+  );
+  assert.ok(w.fighters[1].meter <= 22);
   w.fighters[0].meter = 0;
   const ult = strike({ kind: "ultimate", damage: 45 });
   applyAttack(w, ult, w.fighters[1]);
@@ -177,7 +180,7 @@ test("full ultimate charge takes two seconds and the meter does not refill from 
   assert.equal(w.fighters[0].meter, 0);
 });
 
-test("air jumps keep their full lift on release and cannot be used a third time", () => {
+test("the final air jump keeps full lift on release and cannot be reused", () => {
   for (const id of FIGHTER_IDS) {
     const tap = ready(id),
       held = ready(id);
@@ -194,7 +197,7 @@ test("air jumps keep their full lift on release and cannot be used a third time"
       step(held, { jump: true });
     }
     assert.equal(tap.fighters[0].y, held.fighters[0].y, id);
-    assert.ok(tap.fighters[0].y < 440, id);
+    assert.ok(tap.fighters[0].y < 450, id);
     const velocity = tap.fighters[0].vy;
     step(tap, { jump: true });
     assert.equal(tap.fighters[0].jumps, 0);
@@ -297,7 +300,7 @@ test("unlimited practice meter is opt-in and never changes duel meter rules", ()
       step(w);
       assert.equal(
         w.fighters[0].meter,
-        mode === "training" && enabled ? 100 : 17,
+        mode === "training" && enabled ? COMBAT.ultimateCost : 17,
       );
     }
 });

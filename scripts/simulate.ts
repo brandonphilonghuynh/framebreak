@@ -8,7 +8,9 @@ console.log(
 );
 let games = 0,
   seconds = 0,
-  timeouts = 0;
+  timeouts = 0,
+  ultimates = 0,
+  matchesWithUltimate = 0;
 const wins: Record<string, number> = Object.fromEntries(
   FIGHTER_IDS.map((id) => [id, 0]),
 );
@@ -30,6 +32,9 @@ for (const player of FIGHTER_IDS)
       while (w.winner === null && frames++ < 16000)
         tick(w, [a.update(w), b.update(w)]);
       games++;
+      const used = w.fighters.reduce((sum, f) => sum + f.ultimatesUsed, 0);
+      ultimates += used;
+      if (used > 0) matchesWithUltimate++;
       seconds += w.time;
       if (w.remaining === 0) timeouts++;
       if (w.winner === null)
@@ -45,4 +50,6 @@ console.log({
   meanSeconds: Math.round(seconds / games),
   timeouts,
   wins,
+  ultimates,
+  matchesWithUltimate,
 });

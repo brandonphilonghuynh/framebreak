@@ -8,7 +8,6 @@ import {
   FIGHTERS,
   FIGHTER_IDS,
   PRICES,
-  POWER,
   isBoss,
   type FighterId,
   type BossId,
@@ -38,6 +37,9 @@ import {
 } from "./game/progression";
 import type { Config, WorldState, GameEvent } from "./game/simulation";
 import { PlayerControls } from "./game/input";
+import { PHYSIQUES, SPECIALS, ULTIMATES, ROLES, physique } from "./game/roster";
+import { LORE } from "./game/lore";
+import { fighterStats, profileSections } from "./ui/fighter-profile";
 import { COMBAT } from "./game/tuning";
 import { CombatAudio } from "./game/audio";
 import { portrait } from "./ui/portraits";
@@ -72,6 +74,7 @@ let selected: FighterId = "vector",
   active = false,
   paused = false,
   loading = true,
+  shake = 0.65,
   reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
 let current: Config = {
   player: "vector",
@@ -93,7 +96,7 @@ const controls = new PlayerControls(),
 
 $("app").innerHTML = `
 <div id="hub" class="hub">
- <header class="hub-header"><a class="brand" href="#" aria-label="FRAMEBREAK home">${sun}<span>FRAME<span>BREAK</span><small>THE SOLSTICE CIRCUIT</small></span></a><div class="pilot-bar"><div id="pilot-face"></div><div><b id="pilot-name">Pilot</b><small id="pilot-level"></small><div class="xp-track"><i id="pilot-xp"></i></div></div><span class="balance"><i>✦</i><b id="balance"></b><small>LUMENS</small></span></div></header>
+ <header class="hub-header"><a class="brand" href="#" aria-label="FRAMEBREAK home">${sun}<span><b class="brand-word">FrameBreak</b><small>THE SOLSTICE CIRCUIT</small></span></a><div class="pilot-bar"><div id="pilot-face"></div><div><b id="pilot-name">Pilot</b><small id="pilot-level"></small><div class="xp-track"><i id="pilot-xp"></i></div></div><span class="balance"><i>✦</i><b id="balance"></b><small>LUMENS</small></span></div></header>
  <div class="hub-layout"><nav class="side-nav" aria-label="Main navigation">${[
    ["play", "◈", "Play"],
    ["fighters", "♜", "Fighters"],
@@ -114,10 +117,10 @@ $("app").innerHTML = `
 </div>
 <div id="match" class="match-shell" hidden>
  <header class="match-header"><button id="leave" class="ghost">← SOLSTICE HUB</button><span id="match-label"></span><div><button id="match-help" class="ghost">CONTROLS</button><button id="pause" class="ghost">PAUSE Ⅱ</button></div></header>
- <section class="game-frame" aria-label="Live fighting arena"><div id="arena"></div><div class="hud">${[0, 1].map((i) => `<div class="fighter-hud ${i ? "enemy" : ""}"><div id="portrait-${i}" class="hud-portrait"></div><div class="hud-data"><div class="fighter-name"><span><small>${i ? "CPU RIVAL" : "PILOT ONE"}</small><b id="name-${i}"></b></span><strong id="damage-${i}">0<small>%</small></strong></div><span id="stocks-${i}"></span><div class="shield-track"><i id="shield-${i}"></i></div><div class="meter-track"><i id="meter-${i}"></i></div><span class="meter-label" id="meter-label-${i}"></span><span class="weapon-label" id="weapon-${i}"></span></div></div>`).join("")}<div class="timer"><b id="clock">3:00</b><small id="round-label"></small></div></div><div id="announcement" class="announcement" role="status"></div><div id="boss-phase" class="boss-phase" hidden></div><div class="arena-bottom"><span id="hazard-status"></span><span id="drop-status"></span></div><div id="combo-toast" class="combo-toast"></div></section>
- <div class="control-deck"><div><button data-key="KeyA" aria-label="Move left"><kbd>A</kbd> ←</button><button data-key="KeyD" aria-label="Move right"><kbd>D</kbd> →</button><button data-key="Space" aria-label="Jump"><kbd>SPACE</kbd> JUMP ×2</button></div><div>${[
+ <section class="game-frame" aria-label="Live fighting arena"><div id="arena"></div><div class="hud">${[0, 1].map((i) => `<div class="fighter-hud ${i ? "enemy" : ""}"><div id="portrait-${i}" class="hud-portrait"></div><div class="hud-data"><div class="fighter-name"><span><small>${i ? "CPU RIVAL" : "PILOT ONE"}</small><b id="name-${i}"></b></span><strong id="damage-${i}">0<small>%</small></strong></div><span id="stocks-${i}"></span><div class="shield-track" title="Shield energy"><i id="shield-${i}"></i></div><div class="meter-track"><i id="meter-${i}"></i></div><span class="meter-label" id="meter-label-${i}"></span><span class="weapon-label" id="weapon-${i}"></span><span class="ability-label" id="ability-${i}"></span><span class="mobility-label" id="mobility-${i}"></span></div></div>`).join("")}<div class="timer"><b id="clock">3:00</b><small id="round-label"></small></div></div><div id="announcement" class="announcement" role="status"></div><div id="boss-phase" class="boss-phase" hidden></div><div class="arena-bottom"><span id="hazard-status"></span><span id="drop-status"></span></div><div id="combo-toast" class="combo-toast"></div></section>
+ <div class="control-deck"><div><button data-key="KeyA" aria-label="Move left"><kbd>A</kbd> ←</button><button data-key="KeyD" aria-label="Move right"><kbd>D</kbd> →</button><button data-key="Space" aria-label="Jump"><kbd>SPACE</kbd> JUMP</button></div><div>${[
    ["KeyJ", "J", "STRIKE"],
-   ["KeyK", "K", "CHARGE"],
+   ["KeyK", "K", "SPECIAL"],
    ["KeyL", "L", "PARRY"],
    ["ShiftLeft", "SHIFT", "DODGE"],
    ["KeyI", "I", "ULTIMATE"],
@@ -135,10 +138,11 @@ $("app").innerHTML = `
 <dialog id="pause-menu" class="panel-dialog compact" aria-labelledby="pause-title"><span class="eyebrow">TAKE A BREATH</span><h2 id="pause-title">Hold the light.</h2><p>The arena is paused. Your fight will wait.</p><button id="resume" class="gold-button">BACK TO THE FIGHT ↗</button><button id="pause-restart" class="soft-button">Restart this fight</button><button id="pause-leave" class="text-button">Return to hub</button></dialog>
 <dialog id="result" class="panel-dialog result-dialog" aria-labelledby="result-title"><span id="result-kicker" class="eyebrow"></span><h2 id="result-title"></h2><p id="result-copy"></p><div id="result-fighters" class="result-fighters"></div><div id="reward" class="reward-bar"></div><button id="next" class="gold-button">NEXT FIGHT ↗</button><button id="result-home" class="text-button">Return to Solstice</button></dialog>
 <dialog id="instructions" class="panel-dialog manual-dialog" aria-labelledby="help-title"><button class="close" data-close="instructions" aria-label="Close field manual">×</button><span class="eyebrow">FLIGHT SCHOOL / FIELD MANUAL</span><h2 id="help-title">Own the air.</h2><div id="manual-content"></div></dialog>
+<dialog id="fighter-profile" class="panel-dialog fighter-profile-dialog" aria-labelledby="fighter-profile-name"></dialog>
 <div id="toast" class="toast" role="status" hidden></div>`;
 
 const dialog = (id: string) => $(id) as HTMLDialogElement;
-const manual = `<div class="manual-grid"><section><h3>01 / Movement</h3><p><b>A/D or arrows</b> run and steer. <b>Space, W or Up</b> jumps twice. Release the first jump early for a short hop; the air jump always keeps its full lift. <b>S/Down</b> fast-falls or drops through thin platforms. Moving platforms carry you.</p><p><b>W + K, release K</b> rises back toward the stage once per airtime. Landing restores jumps and recovery.</p></section><section><h3>02 / Attacks</h3><p><b>J</b> chains three strikes. Press the next strike slightly early to buffer it; the first two hits hold your rival close and the third launches. <b>Down + J in the air</b> uses your character’s stun spike. Combine A/D with W/S to aim attacks diagonally. Bows and discs fire in the aimed direction.</p><p><b>Hold K / release</b> charges your special. <b>Hold I / release</b> spends full meter on an ultimate. Full charge takes ${COMBAT.ultimateCharge} seconds; even a tap commits to a ${COMBAT.ultimateWindup}-second windup that can be interrupted. An ultimate can hit twice, 160 ms apart, if you remain in its hitbox.</p></section><section><h3>03 / Defense & gear</h3><p><b>Tap L at impact</b>: the first 155 ms parries frontal attacks, including every ultimate. Projectiles reflect. Hold L to shield regular hits; ultimates bypass a held shield. <b>Shift</b> dodges at a shield cost.</p><p><b>E</b> picks up the nearest eligible weapon or gadget. Your two weapons arrive at 5, 15, 25… seconds. Shared weapons and gadgets arrive at 10, 20, 30… seconds. Bosses enter armed.</p></section><section><h3>04 / The circuit</h3><p>Damage % increases knockback. Launch opponents out to take stocks. Duels last 3 minutes; stocks then lower damage decide a timeout. Bosses have two reinforced stocks; you have three.</p><p>Ranked CPU wins earn Lumens and XP. Boss contracts unlock with level, pay once and allow retries after losses. Red markers warn of falling solar spears. <b>Esc/P</b> pauses. Progress saves on this browser; export a backup in Profile.</p></section></div>`;
+const manual = `<div class="manual-grid"><section><h3>01 / Movement</h3><p><b>A/D or arrows</b> run and steer. <b>Space, W or Up</b> jumps twice (three times for Ember). Release the first jump early for a short hop; the air jump always keeps its full lift. <b>S/Down</b> fast-falls or drops through thin platforms. Moving platforms carry you.</p><p><b>W + K, release K</b> rises back toward the stage once per airtime. Landing restores jumps and recovery.</p></section><section><h3>02 / Attacks</h3><p><b>J</b> chains three strikes. Press the next strike slightly early to buffer it; the first two hits hold your rival close and the third launches. Normal stun lasts 0.5 seconds, cannot be refreshed, and ends with a brief escape window. <b>Down + J in the air</b> uses your character’s stun spike. Combine A/D with W/S to aim attacks diagonally. Bows and discs fire in the aimed direction.</p><p><b>K</b> activates your unique special; each has its own cooldown. Astra can hold K to position her water sphere, then release it with S to aim downward. W + K recovery has a separate airtime limit. <b>Hold I / release</b> spends full meter on an ultimate. Full charge takes ${COMBAT.ultimateCharge} seconds; even a tap commits to a ${COMBAT.ultimateWindup}-second windup that can be interrupted. Rook’s Cataclysm needs 0.65 seconds and solid footing. An ultimate can hit twice, 160 ms apart, if you remain in its hitbox.</p></section><section><h3>03 / Defense & gear</h3><p><b>Tap L at impact</b>: the first 155 ms parries frontal attacks, including every ultimate. Projectiles reflect. Hold L to shield regular hits; ultimates bypass a held shield. <b>Shift</b> dodges at a shield cost. Ember stores two dodges; others store one. Charges regenerate over time.</p><p><b>E</b> picks up the nearest eligible weapon or gadget. Your two weapons arrive at 5, 15, 25… seconds. Shared weapons and gadgets arrive at 10, 20, 30… seconds. Bosses enter armed.</p></section><section><h3>04 / The circuit</h3><p>Damage % increases knockback. Launch opponents out to take stocks. Duels last 3 minutes; stocks then lower damage decide a timeout. Bosses have two reinforced stocks; you have three.</p><p>Ranked CPU wins earn Lumens and XP. Boss contracts unlock with level, pay once and allow retries after losses. Red markers warn of falling solar spears. <b>Esc/P</b> pauses. Progress saves on this browser; export a backup in Profile.</p></section></div>`;
 $("manual-content").innerHTML = manual;
 
 function toast(message: string) {
@@ -173,7 +177,7 @@ function heading(kicker: string, title: string, copy: string) {
   return `<div class="page-heading"><span class="eyebrow">${kicker}</span><h1>${title}</h1><p>${copy}</p></div>`;
 }
 function fighterVisual(id: FighterId, className = "") {
-  return `<div class="crew-art ${className}" style="--col:${FIGHTER_IDS.indexOf(id) % 3};--row:${Math.floor(FIGHTER_IDS.indexOf(id) / 3)}" role="img" aria-label="${FIGHTERS[id].name} character portrait"></div>`;
+  return `<div class="crew-art ${className}">${portrait(id)}</div>`;
 }
 function renderHub() {
   updateProfileBar();
@@ -195,7 +199,8 @@ function renderHub() {
    <div class="fighter-grid">${FIGHTER_IDS.map((id) => {
      const f = FIGHTERS[id],
        owned = p.unlocked.includes(id);
-     return `<article class="crew-card ${selected === id ? "selected" : ""}">${fighterVisual(id)}<div class="crew-info"><span class="eyebrow">${f.title}</span><h2>${f.name}<span class="power" aria-label="Power tier ${POWER[id]}">${"◆".repeat(POWER[id])}</span></h2><p>${f.bio}</p><div class="weapon-pair">${SIGNATURES[id].map((w) => `<span><b>${w.name}</b><small>${w.description}</small></span>`).join("")}</div><small class="move-info">DOWN-AIR / ${f.downAir} · ${f.downAirStun}s stun</small><div class="crew-actions">${owned ? `<button data-select="${id}" class="${selected === id ? "soft-button" : "gold-button"}">${selected === id ? "SELECTED ✓" : "SELECT PILOT"}</button>` : `<button data-buy="${id}" class="gold-button" ${p.currency < PRICES[id] ? "disabled" : ""}>UNLOCK ✦ ${money(PRICES[id])}</button>`}<button data-trial="${id}" class="text-button">Try ↗</button></div></div></article>`;
+     const role = ROLES[id];
+     return `<article class="crew-card ${selected === id ? "selected" : ""}"><button class="fighter-profile-open" data-profile="${id}" aria-label="Open ${f.name} profile">${fighterVisual(id)}<span class="portrait-caption">PILOT DOSSIER <i>↗</i></span></button><div class="crew-info"><span class="eyebrow">${f.title}</span><h2><button class="fighter-name-button" data-profile="${id}">${f.name}</button><span class="difficulty" title="Control complexity, not power">${role.difficulty}</span></h2><small class="fighter-role">${role.role}</small><p>${f.bio}</p>${fighterStats(id)}<div class="special-summary"><b>K / ${f.special}</b><span>${SPECIALS[id].cooldown}s cooldown</span></div><small class="move-info">${PHYSIQUES[id].jumps} JUMPS · ${PHYSIQUES[id].dodges} DODGE${PHYSIQUES[id].dodges > 1 ? "S" : ""} · DOWN-AIR ${f.downAirStun}s</small><div class="crew-actions">${owned ? `<button data-select="${id}" class="${selected === id ? "soft-button" : "gold-button"}">${selected === id ? "SELECTED ✓" : "SELECT PILOT"}</button>` : `<button data-buy="${id}" class="gold-button" ${p.currency < PRICES[id] ? "disabled" : ""}>UNLOCK ✦ ${money(PRICES[id])}</button>`}<button data-trial="${id}" class="text-button">Try ↗</button></div><button data-profile="${id}" class="text-button profile-link">BIOGRAPHY · COMBAT · LORE ↗</button></div></article>`;
    }).join("")}</div>`;
   if (view === "bosses")
     html = `${heading("ONE VICTORY. A LASTING LEGACY.", "Answer the sun.", "Bosses arrive armed, have two reinforced stocks and awaken a second phase. Retry losses; each bounty pays once.")}
@@ -224,9 +229,37 @@ function renderHub() {
   if (view === "guide")
     html = `${heading("FIELD MANUAL / A LITTLE FLIGHT SCHOOL", "Own the air.", "Movement, timing and a well-placed parry make all the difference.")}<section class="glass-panel">${manual}</section>`;
   if (view === "settings")
-    html = `${heading("MAKE YOURSELF AT HOME", "Your atmosphere.", "Audio begins off. Settings apply for this session.")}<section class="settings-panel"><div><span><b>Sound effects</b><small>Strikes, parries, gear and ring-outs.</small></span><button id="sound" class="soft-button" aria-pressed="${audio.enabled}">${audio.enabled ? "ON" : "OFF"}</button></div><div><span><b>Solar soundtrack</b><small>An original, softly synthesized loop.</small></span><button id="music" class="soft-button" aria-pressed="${audio.musicEnabled}">${audio.musicEnabled ? "ON" : "OFF"}</button></div><div><span><b>Reduce motion</b><small>Suppress cosmetic shake and particles; moving platforms remain visible.</small></span><button id="motion" class="soft-button" aria-pressed="${reduced}">${reduced ? "ON" : "OFF"}</button></div><p class="fine">Keyboard + mouse · local single player · no account required.</p></section>`;
+    html = `${heading("MAKE YOURSELF AT HOME", "Your atmosphere.", "Audio begins off. Settings apply for this session.")}<section class="settings-panel"><div><span><b>Sound effects</b><small>Strikes, parries, gear and ring-outs.</small></span><button id="sound" class="soft-button" aria-pressed="${audio.enabled}">${audio.enabled ? "ON" : "OFF"}</button></div><div><span><b>Solar soundtrack</b><small>An original, softly synthesized loop.</small></span><button id="music" class="soft-button" aria-pressed="${audio.musicEnabled}">${audio.musicEnabled ? "ON" : "OFF"}</button></div><div><span><b>Reduce motion</b><small>Suppress cosmetic shake and particles; moving platforms remain visible.</small></span><button id="motion" class="soft-button" aria-pressed="${reduced}">${reduced ? "ON" : "OFF"}</button></div><div><span><b>Screen shake</b><small>Impact intensity; reduced motion overrides this setting.</small></span><label class="shake-control"><input id="shake" type="range" min="0" max="100" value="${Math.round(shake * 100)}" aria-label="Screen shake intensity"><output id="shake-value">${Math.round(shake * 100)}%</output></label></div><p class="fine">Keyboard + mouse · local single player · no account required.</p></section>`;
   $("hub-content").innerHTML = html;
   bindHub();
+}
+function openFighterProfile(id: FighterId) {
+  const f = FIGHTERS[id],
+    lore = LORE[id],
+    role = ROLES[id];
+  const modal = dialog("fighter-profile");
+  modal.innerHTML = `<button class="close" aria-label="Close fighter profile">×</button><div class="dossier-hero">${fighterVisual(id)}<div><span class="eyebrow">SOLSTICE ARCHIVE / ${f.title}</span><h2 id="fighter-profile-name">${f.name}</h2><span class="difficulty">${role.difficulty}</span><p>${role.role}</p><blockquote>“${lore.quote}”</blockquote></div></div><nav class="profile-tabs" aria-label="Profile sections">${["Biography", "Combat", "Lore"].map((label, i) => `<button class="soft-button" data-section="${i}" aria-pressed="${i === 0}" aria-controls="dossier-section-${i}">${label}</button>`).join("")}</nav>${profileSections(id)}<button class="gold-button dossier-trial">TRY ${f.name.toUpperCase()} IN PRACTICE ↗</button>`;
+  modal.querySelector<HTMLButtonElement>(".close")!.onclick = () =>
+    modal.close();
+  modal.querySelector<HTMLButtonElement>(".dossier-trial")!.onclick = () => {
+    modal.close();
+    openSetup(true, id);
+  };
+  modal.querySelectorAll<HTMLButtonElement>("[data-section]").forEach(
+    (button) =>
+      (button.onclick = () => {
+        modal
+          .querySelectorAll<HTMLButtonElement>("[data-section]")
+          .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        modal
+          .querySelectorAll<HTMLElement>(".dossier-section")
+          .forEach(
+            (section, i) =>
+              (section.hidden = i !== Number(button.dataset.section)),
+          );
+      }),
+  );
+  modal.showModal();
 }
 function on(id: string, fn: () => void) {
   document.getElementById(id)?.addEventListener("click", fn);
@@ -250,6 +283,12 @@ function updateSetup() {
   $("practice-meter-option").hidden = !practice;
 }
 function bindHub() {
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-profile]")
+    .forEach(
+      (b) =>
+        (b.onclick = () => openFighterProfile(b.dataset.profile as FighterId)),
+    );
   on("quick-play", () => openSetup());
   on("practice-nav", () => openSetup(true));
   on("boss-nav", () => changeView("bosses"));
@@ -327,6 +366,11 @@ function bindHub() {
         toast((error as Error).message);
       }
     });
+  document.getElementById("shake")?.addEventListener("input", (e) => {
+    shake = Number((e.target as HTMLInputElement).value) / 100;
+    $("shake-value").textContent = `${Math.round(shake * 100)}%`;
+    game.registry.set("shake", shake);
+  });
   on("sound", async () => {
     await audio.setEnabled(!audio.enabled);
     renderHub();
@@ -357,6 +401,7 @@ const game = new Phaser.Game({
       g.registry.set("controls", controls);
       g.registry.set("config", current);
       g.registry.set("reducedMotion", reduced);
+      g.registry.set("shake", shake);
     },
   },
 });
@@ -490,15 +535,25 @@ function hud(w: WorldState) {
         ? "∞ STOCKS"
         : `${"●".repeat(f.stocks)}${"○".repeat(Math.max(0, (isBoss(f.id) ? 2 : 3) - f.stocks))} · ${f.stocks} STOCKS`;
     $(`shield-${i}`).style.width = `${f.shield}%`;
-    $(`meter-${i}`).style.width = `${f.meter}%`;
+    $(`meter-${i}`).style.width =
+      `${Math.min(100, (f.meter / COMBAT.ultimateCost) * 100)}%`;
+    $(`meter-label-${i}`).classList.toggle(
+      "ready",
+      f.meter >= COMBAT.ultimateCost,
+    );
     $(`meter-${i}`).style.background = def.accent;
     $(`meter-label-${i}`).textContent =
-      f.meter >= 100
+      f.meter >= COMBAT.ultimateCost
         ? `${def.ultimate.toUpperCase()} · READY`
-        : `${def.ultimate.toUpperCase()} · ${Math.floor(f.meter)}%`;
+        : `${def.ultimate.toUpperCase()} · ${Math.floor((f.meter / COMBAT.ultimateCost) * 100)}%`;
     $(`weapon-${i}`).textContent = f.weapon
       ? WEAPONS[f.weapon].name.toUpperCase()
       : "UNARMED · E TO EQUIP";
+    $(`ability-${i}`).textContent =
+      `${def.special.toUpperCase()} · ${f.ability ? "ACTIVE" : f.specialCooldown > 0 ? `${f.specialCooldown.toFixed(1)}s` : "READY"}`;
+    $(`ability-${i}`).classList.toggle("ready", f.specialCooldown === 0);
+    $(`mobility-${i}`).textContent =
+      `${f.jumps}/${physique(f.id).jumps} JUMPS · ${f.dodgeCharges}/${physique(f.id).dodges} DODGES${f.dodgeRegen > 0 ? ` (${f.dodgeRegen.toFixed(1)}s)` : ""} · RECOVERY ${f.recoveryUsed ? "USED" : "READY"}`;
   });
   $("clock").textContent =
     w.countdown > 0
@@ -590,7 +645,16 @@ function ended(w: WorldState) {
   audio.play(won ? "win" : "lose");
 }
 function combatEvent(e: GameEvent) {
-  if (e.type === "hit") audio.play("hit");
+  if (e.type === "ready") {
+    if (e.side === 0) {
+      audio.play("ready");
+      announce(e.text ?? "ULTIMATE READY", 1100);
+    }
+  } else if (e.type === "ability")
+    audio.ability(current[e.side === 0 ? "player" : "cpu"], false);
+  else if (e.type === "attack" && e.ultimate)
+    audio.ability(current[e.side === 0 ? "player" : "cpu"], true);
+  else if (e.type === "hit") audio.play("hit");
   else if (e.type === "parry") {
     audio.play("parry");
     announce(e.text ?? "PERFECT PARRY");

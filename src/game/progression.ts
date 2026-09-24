@@ -3,7 +3,7 @@ import {
   BOSS_IDS,
   FIGHTER_IDS,
   PRICES,
-  POWER,
+  PROGRESSION_TIER,
   type BossId,
   type FighterId,
   type ArenaId,
@@ -125,7 +125,7 @@ export function rankedOpponent(
 ): { cpu: FighterId; level: number; arena: ArenaId } {
   const tier = Math.min(
     5,
-    Math.max(POWER[selected] - 1, Math.floor(p.rating / 200)),
+    Math.max(PROGRESSION_TIER[selected] - 1, Math.floor(p.rating / 200)),
   );
   const order = [
     "rook",

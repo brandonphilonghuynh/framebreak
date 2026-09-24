@@ -37,7 +37,7 @@ export class CpuController {
           dx = enemy.x - f.x;
         input.move = Math.abs(dx) > 190 ? Math.sign(dx) : 0;
         f.facing = Math.sign(dx) || f.facing;
-        f.meter = 100;
+        f.meter = COMBAT.ultimateCost;
         input.ultimate = w.time % 4 > 2 && w.time % 4 < 2.9;
       }
       return input;
@@ -46,7 +46,7 @@ export class CpuController {
       enemy = w.fighters[1 - this.side],
       now = w.time;
     if (w.countdown > 0) return neutralInput();
-    if (now < this.nextThink)
+    if (now < this.nextThink && f.stun === 0)
       return {
         ...this.input,
         jump: now < this.jumpUntil,
@@ -95,7 +95,7 @@ export class CpuController {
         if (f.jumps > 0 && now > this.jumpUntil + 0.1) {
           this.jumpUntil = now + 0.14;
           input.jump = true;
-        } else if (!f.recoveryUsed && f.specialCooldown === 0 && !f.charge) {
+        } else if (!f.recoveryUsed && !f.charge && !f.ability) {
           input.up = true;
           input.special = true;
           this.releaseAt = now + 0.15;
@@ -106,11 +106,7 @@ export class CpuController {
       const weapon = f.weapon ? WEAPONS[f.weapon] : null;
       const ranged = weapon?.shape === "bow" || weapon?.shape === "disc";
       const preferred =
-        ranged || style === "nyx" || style === "solis"
-          ? 235
-          : style === "rook"
-            ? 70
-            : 85;
+        ranged || style === "nyx" ? 235 : style === "rook" ? 70 : 85;
       if (Math.abs(dx) < preferred - 30)
         input.move =
           ranged || style === "nyx" || style === "solis" ? -Math.sign(dx) : 0;
@@ -171,7 +167,8 @@ export class CpuController {
       } else if (
         Math.abs(dx) < 120 &&
         this.random() < 0.07 &&
-        f.dodgeCooldown === 0
+        f.dodgeCooldown === 0 &&
+        f.dodgeCharges > 0
       )
         input.dodge = true;
       else if (
@@ -184,7 +181,7 @@ export class CpuController {
       if (
         !input.guard &&
         !input.attack &&
-        f.meter >= 100 &&
+        f.meter >= COMBAT.ultimateCost &&
         !f.charge &&
         Math.abs(dx) < (style === "rook" ? 250 : 550) &&
         this.random() < 0.23
@@ -197,7 +194,12 @@ export class CpuController {
         !input.attack &&
         !f.charge &&
         f.specialCooldown === 0 &&
-        Math.abs(dx) < (style === "nyx" || style === "solis" ? 600 : 280) &&
+        Math.abs(dx) <
+          (f.id === "solis"
+            ? 180
+            : style === "nyx" || f.id === "vector"
+              ? 500
+              : 220) &&
         this.random() < 0.19
       ) {
         input.special = true;
@@ -229,6 +231,15 @@ export class CpuController {
           input.move = Math.sign(supply.x - f.x);
       }
     }
+    if (f.ability) {
+      input.attack = false;
+      input.ultimate = false;
+      input.dodge = false;
+      input.guard = false;
+      this.guardUntil = 0;
+      input.special = f.id === "astra" && now < this.releaseAt;
+      input.down = f.id === "astra" && enemy.y > f.y + 65;
+    }
     if (f.charge) {
       input.attack = false;
       input.dodge = false;
@@ -239,7 +250,7 @@ export class CpuController {
     }
     if (
       !recovering &&
-      (f.charge || input.attack || input.special || input.ultimate)
+      (f.charge || f.ability || input.attack || input.special || input.ultimate)
     ) {
       input.move = 0;
       f.facing = Math.sign(dx) || f.facing;
@@ -249,6 +260,7 @@ export class CpuController {
     // Release pulse buttons between decisions so attacks/jumps remain deliberate presses.
     if (this.input.attack) input.attack = false;
     if (this.input.dodge) input.dodge = false;
+    if (this.input.special && !f.charge && !f.ability) input.special = false;
     this.input = input;
     return { ...input };
   }

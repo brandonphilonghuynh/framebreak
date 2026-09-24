@@ -1,4 +1,6 @@
 import Phaser from "phaser";
+import { physique } from "../game/roster";
+import { drawFields, drawSignature } from "./ability-effects";
 import { COMBAT } from "../game/tuning";
 import { ARENAS, FIGHTERS, isBoss, platformsAt } from "../game/data";
 import { WEAPONS, GADGET_NAMES, type GadgetId } from "../game/equipment";
@@ -207,7 +209,9 @@ export class Arena extends Phaser.Scene {
         );
       }
     }
+    drawFields(this.attacks, w, this.reduced);
     w.attacks.forEach((a) => {
+      if (drawSignature(this.attacks, a, w, this.reduced)) return;
       this.attacks.fillStyle(a.color, a.kind === "ultimate" ? 0.4 : 0.3);
       this.attacks.lineStyle(a.kind === "ultimate" ? 4 : 2, a.color, 0.9);
       if (a.projectile) {
@@ -254,8 +258,8 @@ export class Arena extends Phaser.Scene {
           : f.y;
       rig.root.setPosition(f.x, dropY);
       rig.body.setScale(
-        f.facing * (isBoss(f.id) ? 1.24 : 1),
-        isBoss(f.id) ? 1.24 : 1,
+        f.facing * physique(f.id).bodyWidth,
+        physique(f.id).bodyHeight,
       );
       rig.weapon.clear();
       if (f.weapon)
@@ -309,6 +313,41 @@ export class Arena extends Phaser.Scene {
             : f.guarding
               ? 25
               : 18;
+      if (f.id === "rook" && f.charge === "ultimate") {
+        rig.front.angle = -160;
+        rig.back.angle = 160;
+      } else if (f.id === "rook" && f.pose === "ultimate") {
+        rig.front.angle = -15;
+        rig.back.angle = 15;
+        rig.body.setAngle(f.facing * 10);
+      } else if (f.ability || f.pose === "special") {
+        const angles: Record<string, [number, number]> = {
+          vector: [-85, -45],
+          rook: [-65, 65],
+          nyx: [-100, 80],
+          ember: [-120, 90],
+          solis: [-80, 80],
+          astra: [-65, 120],
+        };
+        const pose = angles[f.id];
+        if (pose) {
+          rig.front.angle = pose[0];
+          rig.back.angle = pose[1];
+        }
+      } else if (f.pose === "ultimate") {
+        const angles: Record<string, [number, number]> = {
+          vector: [-95, -70],
+          nyx: [-145, 130],
+          ember: [-165, 155],
+          solis: [-90, 90],
+          astra: [-110, 145],
+        };
+        const pose = angles[f.id];
+        if (pose) {
+          rig.front.angle = pose[0];
+          rig.back.angle = pose[1];
+        }
+      }
       rig.legs[0].angle =
         walking && !this.reduced
           ? Math.sin(w.time * 16) * 28
@@ -337,11 +376,13 @@ export class Arena extends Phaser.Scene {
           0.9,
         );
       rig.label.setText(
-        f.charge
-          ? `${f.charge === "ultimate" ? "ULT" : "CHARGE"} ${Math.min(100, Math.floor((f.chargeTime / (f.charge === "ultimate" ? COMBAT.ultimateCharge : COMBAT.specialCharge)) * 100))}%`
-          : f.stun > 0
-            ? "STUNNED"
-            : `${i ? "CPU" : "YOU"} · ${Math.round(f.damage)}%`,
+        f.ability
+          ? FIGHTERS[f.id].special.toUpperCase()
+          : f.charge
+            ? `${f.charge === "ultimate" ? "ULT" : "CHARGE"} ${Math.min(100, Math.floor((f.chargeTime / (f.charge === "ultimate" ? COMBAT.ultimateCharge : COMBAT.specialCharge)) * 100))}%`
+            : f.stun > 0
+              ? "STUNNED"
+              : `${i ? "CPU" : "YOU"} · ${Math.round(f.damage)}%`,
       );
       const outside = f.x < 18 || f.x > 1182 || f.y < 30 || f.y > 680;
       this.indicators[i]
@@ -398,6 +439,16 @@ export class Arena extends Phaser.Scene {
   private effect(event: GameEvent) {
     this.game.events.emit("combat-event", event);
     if (event.type === "finish") return;
+    const shake = this.reduced
+      ? 0
+      : Number(this.game.registry.get("shake") ?? 0.65);
+    if (
+      event.type === "attack" &&
+      event.ultimate &&
+      this.world.fighters[event.side ?? 0].id === "rook" &&
+      shake > 0
+    )
+      this.cameras.main.shake(180, 0.005 * shake);
     const color =
       event.type === "parry"
         ? 0xfff0a0
@@ -408,7 +459,7 @@ export class Arena extends Phaser.Scene {
       if (!this.reduced) {
         this.cameras.main.shake(
           event.type === "ko" ? 230 : 95,
-          event.type === "ko" ? 0.009 : 0.003,
+          (event.type === "ko" ? 0.009 : 0.003) * shake,
         );
         for (let i = 0; i < (event.type === "ko" ? 20 : 9); i++) {
           const angle = i * 2.4,

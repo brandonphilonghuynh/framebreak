@@ -35,3 +35,355 @@
   pointer-events: none;
   z-index: -1;
 }
+
+/* The artwork is a square atlas cell, contained and centered at its native ratio. */
+.portrait-art,
+.portrait-art.boss-portrait {
+  background: none;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  object-fit: contain;
+}
+.crew-art {
+  background: #112f31;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.crew-art > .portrait-art {
+  width: 100%;
+  height: 100%;
+}
+.hero-portrait {
+  background: #173f3d;
+  filter: none;
+}
+.brand-word {
+  display: block;
+  font-size: 32px;
+  letter-spacing: -1.2px;
+  color: #efce83;
+  background: linear-gradient(
+    105deg,
+    #fff4d5 0%,
+    #f7df9e 30%,
+    #e5bd65 64%,
+    #bc852c 100%
+  );
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 1px 0 #825c2b) drop-shadow(0 0 7px #eac46d26);
+}
+.brand small {
+  color: #efe4c1;
+  letter-spacing: 3px;
+}
+.fighter-profile-open {
+  width: 100%;
+  display: block;
+  padding: 0;
+  background: #112f31;
+  position: relative;
+}
+.portrait-caption {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 10px 15px;
+  background: linear-gradient(0deg, #102e30ec, #102e3066);
+  font-size: 8px;
+  letter-spacing: 2px;
+  text-align: left;
+  color: #f0dfa4;
+}
+.portrait-caption i {
+  float: right;
+  font-size: 15px;
+}
+.fighter-name-button {
+  background: none;
+  font: inherit;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+.fighter-profile-open:hover .portrait-caption,
+.fighter-name-button:hover {
+  color: #fff3c4;
+}
+.difficulty {
+  font-size: 9px;
+  font-weight: 700;
+  padding: 5px 8px;
+  border: 1px solid #dfc98455;
+  color: #f1dfa5;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.fighter-role {
+  display: block;
+  color: #a5e6ce;
+  margin: 4px 0 10px;
+  font-size: 10px;
+}
+.fighter-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 12px;
+  margin: 16px 0;
+}
+.fighter-stats div {
+  border-bottom: 1px solid #bbd4c21c;
+  padding-bottom: 7px;
+}
+.fighter-stats dt {
+  font-size: 9px;
+  color: #b6cfc5;
+}
+.fighter-stats dd {
+  font-size: 11px;
+  color: #f4e4b6;
+  margin: 5px 0 0;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.special-summary {
+  border-left: 2px solid #d9c784;
+  padding: 8px 10px;
+  background: #e5dfa00a;
+  margin: 13px 0;
+}
+.special-summary b,
+.special-summary span {
+  display: block;
+  font-size: 10px;
+}
+.special-summary span {
+  color: #bed6c6;
+  font-size: 9px;
+  margin-top: 5px;
+}
+.profile-link {
+  width: 100%;
+  font-size: 8px;
+  margin-top: 9px;
+}
+.fighter-profile-dialog {
+  width: min(910px, 94vw);
+}
+.dossier-hero {
+  display: grid;
+  grid-template-columns: 230px 1fr;
+  gap: 30px;
+  align-items: center;
+  padding: 7px 0 25px;
+}
+.dossier-hero .crew-art {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 13px;
+  border: 1px solid #dcca8660;
+}
+.dossier-hero h2 {
+  margin: 13px 0;
+  font-size: 48px;
+}
+.dossier-hero p {
+  color: #bdddcf;
+  font-size: 13px;
+  margin: 14px 0;
+}
+blockquote {
+  font-size: 16px;
+  font-style: italic;
+  line-height: 1.6;
+  margin: 20px 0 0;
+  color: #f5df9e;
+}
+.profile-tabs {
+  display: flex;
+  gap: 10px;
+  border-bottom: 1px solid #c8deb63b;
+  padding-bottom: 17px;
+}
+.profile-tabs button[aria-pressed="true"] {
+  color: #183f36;
+  background: #eed496;
+}
+.dossier-section {
+  padding: 20px 0;
+}
+.dossier-section h3 {
+  color: #f0d79b;
+  font-size: 15px;
+  margin: 22px 0 10px;
+}
+.dossier-section h3 small {
+  color: #b5d4c5;
+  font-weight: normal;
+}
+.dossier-section p {
+  font-size: 13px;
+  color: #d9e8dc;
+  line-height: 1.85;
+}
+.dossier-facts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 19px;
+}
+.dossier-facts small {
+  display: block;
+  color: #a2c7b8;
+  font-size: 8px;
+  letter-spacing: 1px;
+  margin-bottom: 7px;
+}
+.dossier-facts b {
+  font-size: 12px;
+}
+.strength-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.dossier-section .fighter-stats {
+  grid-template-columns: repeat(3, 1fr);
+}
+.ability-label,
+.mobility-label {
+  display: block;
+  font-size: 8px;
+  margin-top: 6px;
+  color: #d4e5db;
+  line-height: 1.5;
+}
+.mobility-label {
+  color: #bbd7ca;
+  font-size: 7px;
+}
+.ready {
+  color: #ffe49a;
+  font-weight: bold;
+  text-shadow: 0 0 8px #fbd77255;
+}
+.meter-track {
+  height: 8px;
+}
+.shield-track {
+  height: 5px;
+}
+.shake-control {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+.shake-control input {
+  width: 110px;
+  accent-color: #eed496;
+}
+@media (max-width: 700px) {
+  .brand-word {
+    font-size: 28px;
+  }
+  .dossier-hero {
+    grid-template-columns: 110px 1fr;
+    gap: 17px;
+  }
+  .dossier-hero h2 {
+    font-size: 32px;
+  }
+  .dossier-hero blockquote {
+    font-size: 12px;
+  }
+  .dossier-facts,
+  .dossier-section .fighter-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .strength-grid {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .profile-tabs {
+    gap: 6px;
+  }
+  .profile-tabs button {
+    padding: 10px;
+    font-size: 9px;
+  }
+  .ability-label {
+    font-size: 7px;
+  }
+  .mobility-label {
+    font-size: 6px;
+  }
+}
+/* Keep the expanded combat readout clear of the upper platforms. */
+.fighter-hud {
+  padding: 8px;
+  align-items: flex-start;
+}
+.hud-portrait {
+  width: 46px;
+  height: 58px;
+  margin-top: 3px;
+}
+.hud-data {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 9px;
+  align-items: center;
+}
+.fighter-name,
+.meter-track,
+.weapon-label,
+.mobility-label {
+  grid-column: 1 / -1;
+}
+.fighter-name strong {
+  font-size: 29px;
+}
+.fighter-name b {
+  font-size: clamp(11px, 1.3vw, 17px);
+}
+.hud-data > span[id^="stocks"] {
+  font-size: 7px;
+  margin: 4px 0 2px;
+  letter-spacing: 0.2px;
+}
+.shield-track {
+  margin-top: 3px;
+}
+.meter-label,
+.ability-label {
+  white-space: normal;
+  font-size: 7px;
+  line-height: 1.3;
+  margin-top: 4px;
+}
+.weapon-label,
+.mobility-label {
+  margin-top: 3px;
+  font-size: 6px;
+}
+@media (max-width: 700px) {
+  .fighter-hud {
+    padding: 6px;
+  }
+  .fighter-name strong {
+    font-size: 24px;
+  }
+  .meter-label,
+  .ability-label {
+    font-size: 6px;
+  }
+  .mobility-label {
+    line-height: 1.6;
+  }
+}

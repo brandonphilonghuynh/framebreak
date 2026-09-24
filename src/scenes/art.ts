@@ -8,6 +8,7 @@ import {
   type CombatantId,
   type Platform,
 } from "../game/data";
+import { physique } from "../game/roster";
 import type { WeaponShape } from "../game/equipment";
 export interface Rig {
   root: Phaser.GameObjects.Container;
@@ -124,7 +125,15 @@ export function makeRig(
   const root = scene.add.container(),
     body = scene.add.container();
   root.add(body);
-  const color = def.color,
+  const proportions = physique(id);
+  const color =
+      id === "vector"
+        ? 0x438675
+        : id === "rook"
+          ? 0x648157
+          : id === "ember"
+            ? 0xe19247
+            : def.color,
     ivory = 0xeee8d0,
     ink = 0x173e39,
     gold = 0xc9ad67;
@@ -172,6 +181,7 @@ export function makeRig(
     g.lineStyle(2, gold);
     g.lineBetween(-4, 35, 16, 35);
     limb.add(g);
+    limb.setScale(proportions.limbWidth / proportions.bodyWidth, 1);
     body.add(limb);
     return limb;
   });
@@ -189,6 +199,7 @@ export function makeRig(
     g.fillStyle(ivory);
     g.fillRoundedRect(-7, 16, 18, 9, 3);
     limb.add(g);
+    limb.setScale(proportions.limbWidth / proportions.bodyWidth, 1);
     return limb;
   };
   const back = arm(true);
@@ -206,12 +217,17 @@ export function makeRig(
   core.lineStyle(2, gold);
   core.lineBetween(-16, -46, 16, -46);
   core.lineBetween(0, -65, 0, -49);
+  core.lineStyle(1, 0xffffff, 0.5);
+  core.lineBetween(-w + 3, -80, -w + 6, -54);
+  core.lineStyle(3, 0x52665a, 0.5);
+  core.lineBetween(w - 5, -72, w - 8, -43);
   core.fillStyle(gold);
   core.fillRoundedRect(-w, -39, w * 2, 8, 2);
   core.fillStyle(0xfcf1b1);
   core.fillCircle(0, -73, 6);
   core.lineStyle(2, color);
   core.strokeCircle(0, -73, 9);
+  const head = scene.add.graphics();
   // Different faces, hair and headgear keep silhouettes readable at game scale.
   if (!boss) {
     const skin =
@@ -220,95 +236,102 @@ export function makeRig(
         : id === "nyx"
           ? 0xb57d61
           : 0xe4b283;
-    core.fillStyle(skin);
-    core.fillRoundedRect(-13, -118, 29, 30, 9);
-    core.fillStyle(0x253d35);
-    core.fillRect(1, -106, 4, 3);
-    core.fillRect(12, -106, 3, 3);
-    core.lineStyle(1, 0x543b2a);
-    core.lineBetween(5, -95, 12, -96);
+    head.fillStyle(skin);
+    head.fillRoundedRect(-13, -118, 29, 30, 9);
+    head.fillStyle(0x253d35);
+    head.fillRect(1, -106, 4, 3);
+    head.fillRect(12, -106, 3, 3);
+    head.lineStyle(1, 0x543b2a);
+    head.lineBetween(5, -95, 12, -96);
     if (id === "vector") {
       [-12, -3, 7, 15].forEach((x, i) => {
-        core.fillStyle(0x383122);
-        core.fillCircle(x, -119 - (i % 2) * 3, 8);
+        head.fillStyle(0x383122);
+        head.fillCircle(x, -119 - (i % 2) * 3, 8);
       });
-      core.fillStyle(gold);
-      core.fillRoundedRect(-15, -117, 31, 6, 2);
-      core.fillStyle(0x6fcfc5);
-      core.fillCircle(-4, -114, 5);
-      core.fillCircle(10, -114, 5);
+      head.fillStyle(gold);
+      head.fillRoundedRect(-15, -117, 31, 6, 2);
+      head.fillStyle(0x6fcfc5);
+      head.fillCircle(-4, -114, 5);
+      head.fillCircle(10, -114, 5);
     } else if (id === "rook") {
       poly(
-        core,
+        head,
         [-14, -100, -7, -89, 10, -87, 17, -95, 12, -90, -9, -87],
         0x303e30,
       );
-      core.fillStyle(ink);
-      core.fillRoundedRect(-14, -123, 31, 11, 4);
-      core.fillStyle(color);
-      core.fillRect(-17, -122, 37, 4);
+      head.fillStyle(ink);
+      head.fillRoundedRect(-14, -123, 31, 11, 4);
+      head.fillStyle(color);
+      head.fillRect(-17, -122, 37, 4);
     } else if (id === "ember") {
       poly(
-        core,
+        head,
         [-17, -110, -13, -126, 3, -135, 21, -124, 16, -114, 3, -121, -3, -107],
         0xc76138,
       );
       poly(
-        core,
+        head,
         [-11, -122, -37, -143, -28, -105, -45, -91, -20, -106],
         0xf18f43,
       );
     } else if (id === "nyx") {
       poly(
-        core,
+        head,
         [
           -17, -99, -20, -116, -9, -131, 14, -127, 23, -110, 9, -121, -5, -111,
           -12, -98,
         ],
         0xd4cde6,
       );
-      core.lineStyle(3, color);
-      core.lineBetween(-13, -111, 19, -113);
-      core.fillStyle(gold);
-      core.fillCircle(-12, -97, 3);
+      head.lineStyle(3, color);
+      head.lineBetween(-13, -111, 19, -113);
+      head.fillStyle(gold);
+      head.fillCircle(-12, -97, 3);
     } else if (id === "solis") {
       [-15, -7, 1, 9].forEach((x) => {
-        core.lineStyle(5, 0xe5e2c7);
-        core.lineBetween(x, -124, x - 4, -106);
+        head.lineStyle(5, 0xe5e2c7);
+        head.lineBetween(x, -124, x - 4, -106);
       });
-      core.lineStyle(3, gold);
-      core.strokeEllipse(0, -105, 62, 45);
+      head.lineStyle(3, gold);
+      head.strokeEllipse(0, -105, 62, 45);
     } else {
       poly(
-        core,
+        head,
         [-17, -108, -11, -130, 16, -125, 23, -117, 2, -121, -8, -107],
         0x293e55,
       );
-      core.lineStyle(2, gold);
-      core.strokeEllipse(2, -121, 40, 12);
+      head.lineStyle(2, gold);
+      head.strokeEllipse(2, -121, 40, 12);
     }
   } else {
     poly(
-      core,
+      head,
       [-18, -111, -10, -131, 12, -128, 24, -110, 14, -91, -15, -94],
       ivory,
     );
     poly(core, [-14, -112, 21, -115, 14, -102, 0, -98, -13, -104], ink);
-    core.lineStyle(4, color);
-    core.lineBetween(-8, -109, 0, -106);
-    core.lineBetween(6, -106, 16, -109);
+    head.lineStyle(4, color);
+    head.lineBetween(-8, -109, 0, -106);
+    head.lineBetween(6, -106, 16, -109);
     poly(
-      core,
+      head,
       [-14, -126, -24, -144, -2, -135, 6, -150, 14, -131, 26, -142, 20, -122],
       gold,
     );
   }
+  head.setScale(
+    boss ? 1 : 0.76 / proportions.bodyWidth,
+    boss ? 1 : 0.8 / proportions.bodyHeight,
+  );
+  if (!boss) head.setPosition(0, -30);
+
   if (heavy) {
     poly(core, [-31, -89, -13, -90, -17, -72, -35, -72], ivory);
     core.fillStyle(color);
     core.fillRoundedRect(-33, -86, 17, 6, 2);
   }
   body.add(core);
+  body.add(head);
   const front = arm(false);
   body.add(front);
   const weapon = scene.add.graphics({ x: 6, y: 28 });
@@ -325,7 +348,7 @@ export function makeRig(
     .setVisible(false);
   root.add(charge);
   const label = scene.add
-    .text(0, boss ? -169 : -151, side ? "CPU" : "P1", {
+    .text(0, -136 * proportions.bodyHeight, side ? "CPU" : "P1", {
       fontFamily: "Arial",
       fontStyle: "bold",
       fontSize: "12px",
@@ -335,7 +358,7 @@ export function makeRig(
     })
     .setOrigin(0.5);
   root.add(label);
-  if (boss) body.setScale(1.24);
+  body.setScale(proportions.bodyWidth, proportions.bodyHeight);
   return { root, body, front, back, legs, label, shield, charge, weapon, cape };
 }
 export function drawArena(scene: Phaser.Scene, id: ArenaId) {
