@@ -1,0 +1,34 @@
+.portrait-art.boss-portrait {
+  background-image: url("/art/solstice-bosses.png");
+  background-size: 200% 200%;
+  background-position: calc(var(--col) * 100%) calc(var(--row) * 100%);
+}
+.boss-art > .boss-portrait {
+  position: absolute;
+  inset: 0;
+}
+
+.game-frame {
+  width: min(1400px, calc(100vw - 40px), calc((100dvh - 164px) * 1.764706));
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 1200 / 680;
+}
+.control-deck {
+  flex-wrap: wrap;
+}
+@media (max-width: 700px) {
+  .game-frame {
+    width: 100%;
+  }
+}
+
+/* Phaser must initialize with a measurable parent, even while the hub is open. */
+.match-shell[hidden] {
+  display: block !important;
+  position: fixed;
+  inset: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: -1;
+}

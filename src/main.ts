@@ -1,373 +1,697 @@
 import Phaser from "phaser";
 import { Arena } from "./scenes/Arena";
 import {
-  canUse,
-  chooseCpu,
-  cost,
-  newMatch,
-  resolveTurn,
-  unavailableReason,
-  shiftDistance,
-} from "./game/combat";
-import {
-  ACTIONS,
+  ARENAS,
+  ARENA_IDS,
+  BOSSES,
+  BOSS_IDS,
   FIGHTERS,
   FIGHTER_IDS,
-  MOVES,
-  DISTANCES,
-  KEYS,
-  ICONS,
-  getMove,
-  type Action,
+  PRICES,
+  POWER,
+  isBoss,
   type FighterId,
+  type BossId,
+  type ArenaId,
   type Difficulty,
 } from "./game/data";
+import {
+  SIGNATURES,
+  WEAPONS,
+  GADGET_NAMES,
+  type GadgetId,
+} from "./game/equipment";
+import {
+  newProfile,
+  parseProfile,
+  purchase,
+  SAVE_KEY,
+  levelOf,
+  rankOf,
+  xpProgress,
+  bossAvailable,
+  rankedOpponent,
+  rankedReward,
+  settleMatch,
+  type Profile,
+  type Reward,
+} from "./game/progression";
+import type { Config, WorldState, GameEvent } from "./game/simulation";
+import { PlayerControls } from "./game/input";
 import { CombatAudio } from "./game/audio";
 import { portrait } from "./ui/portraits";
 import "./style.css";
-const app = document.querySelector<HTMLDivElement>("#app")!;
-const card = (action: Action) =>
-  `<button class="action ${action}" data-action="${action}"><div class="action-top"><kbd>${KEYS[action]}</kbd><span id="cost-${action}" class="cost"></span><span class="move-icon">${ICONS[action]}</span></div><div class="move-name" id="name-${action}"></div><div id="stats-${action}" class="move-stats"></div><p id="desc-${action}"></p><div id="reach-${action}" class="reach"></div></button>`;
-app.innerHTML = `
-<header><a class="brand" href="#" aria-label="FRAMEBREAK roster">FRAME<span>BREAK</span><i>ϟ</i></a><div class="header-right"><span class="edition">NEON CIRCUIT <b>1.0</b></span><button id="sound" class="small" aria-pressed="false">SOUND OFF</button><button id="motion" class="small" aria-pressed="false">REDUCE MOTION</button><button id="help" class="small">FIELD MANUAL ↗</button></div></header>
-<main><div class="intro"><div><div class="eyebrow"><span class="live-dot"></span> SIMULTANEOUS TACTICAL FIGHTING</div><h1>Break the <em>pattern.</em></h1></div><div class="intro-aside"><span>THE ROOFTOPS ARE YOURS.</span><p>Read the distance. Read the rival.</p></div></div>
-<section id="combat" aria-label="Combat arena"><div class="arena-top"><span>◈ SKYLINE 09 <i>/</i> AFTER HOURS</span><span id="turn">EXCHANGE 01</span></div><div class="fighters-hud">${[0, 1].map((i) => `<div class="fighter-hud ${i ? "enemy" : ""}"><div class="hud-portrait" id="portrait-${i}"></div><div class="hud-data"><div class="fighter-name"><div><small id="role-${i}"></small><strong id="fighter-${i}"></strong></div><span id="hp${i}"></span></div><div class="bar health"><div id="health${i}"></div></div><div class="stamina-line"><span>STAMINA</span><span id="sp${i}"></span></div><div class="bar stamina"><div id="stamina${i}"></div></div><div id="signature-${i}" class="signature-state"></div></div></div>`).join("")}<div class="versus">VS</div></div>
-<div id="arena"><div id="reveal" class="reveal" aria-live="polite"></div></div><div class="range-strip"><span>STRIKE DISTANCE</span><div id="distance"></div><span id="range-hint"></span></div></section>
-<section class="decision"><div class="section-heading"><div><span class="eyebrow">YOUR MOVE</span><h2 id="phase">Choose your next read</h2></div><span id="cpu-status"><i class="live-dot"></i> RIVAL LOCKED IN</span></div><div class="action-grid">${ACTIONS.slice(0, 7).map(card).join("")}</div><div class="footwork"><span><b>CONTROL THE GAP</b><small>Footwork resolves before attacks.</small></span>${ACTIONS.slice(
-  7,
-)
-  .map(
-    (a) =>
-      `<button class="movement" data-action="${a}"><kbd>${KEYS[a]}</kbd><b>${MOVES[a].name}</b><span>${ICONS[a]}</span><small>−8 ST</small></button>`,
-  )
-  .join(
-    "",
-  )}<p id="footwork-note">Opposite steps cancel. Matching steps stack.</p></div></section>
-<section class="intel"><div class="read-panel"><span class="eyebrow">READ THE ROOM</span><p id="read"></p><div class="history" id="history"></div></div><div class="log-panel"><div class="section-heading"><span class="eyebrow">THE EXCHANGE</span><span id="log-tag"></span></div><div id="log" role="log" aria-live="polite"></div></div></section>
-<footer><span>FRAMEBREAK / NEON CIRCUIT 1.0</span><span>1–7 ACTIONS · Q/E FOOTWORK · H HELP · R REMATCH</span><div><button id="roster" class="small">CHANGE FIGHTERS</button><button id="restart" class="small">REMATCH ↻</button></div></footer></main>
-<dialog id="menu" aria-labelledby="menu-title"><div class="menu-top"><span class="eyebrow">WELCOME TO THE NEON CIRCUIT</span><span class="edition">SINGLE PLAYER / 1.0</span></div><div class="menu-headline"><h2 id="menu-title">Two minds.<br><em>One moment.</em></h2><p>Choose your fighter. Find your rival’s rhythm.<br>Then break it.</p></div><div class="eyebrow roster-label">01 / PICK YOUR FIGHTER</div><div class="roster-grid">${FIGHTER_IDS.map((id) => `<button class="fighter-card" data-fighter="${id}" style="--accent:${FIGHTERS[id].accent}" aria-pressed="${id === "vector"}">${portrait(id)}<div><small>${FIGHTERS[id].title}</small><strong>${FIGHTERS[id].name}</strong><p>${FIGHTERS[id].tagline}</p></div></button>`).join("")}</div><div id="fighter-detail"></div><div class="match-options"><label>02 / YOUR RIVAL<select id="opponent">${FIGHTER_IDS.map((id) => `<option value="${id}" ${id === "rook" ? "selected" : ""}>${FIGHTERS[id].name} · ${FIGHTERS[id].personality}</option>`).join("")}</select></label><label>03 / CPU READS<select id="difficulty"><option value="rookie">Rookie · forgiving reads</option><option value="standard" selected>Standard · adaptive</option><option value="expert">Expert · stronger reads</option></select></label></div><button id="start" class="primary">ENTER THE CIRCUIT <span>↗</span></button><div class="menu-bottom"><button id="menu-help" class="text-button">First time? Learn the reads →</button><span>NO TIMER. MAKE IT COUNT.</span></div></dialog>
-<dialog id="result" aria-labelledby="result-title"><div id="result-kicker" class="eyebrow"></div><h2 id="result-title"></h2><p id="result-copy"></p><div id="result-stats" class="result-stats"></div><button id="rematch" class="primary">RUN IT BACK ↗</button><button id="result-roster" class="text-button">Change fighters →</button></dialog>
-<dialog id="instructions" aria-labelledby="help-title"><div class="eyebrow">FIELD MANUAL / NEON CIRCUIT</div><h2 id="help-title">Make your <em>read.</em></h2><p>Your rival commits <b>before</b> you choose. Neither fighter sees the other’s current action. Both are revealed together.</p><div class="manual-grid"><section><h3>01 / Own the distance</h3><p><b>Q Advance</b> closes one band; <b>E Retreat</b> opens one. Both cost 8 stamina. Movement resolves before attacks: opposite steps cancel; matching steps shift two bands. Retreat is not a dodge. At a boundary, movement still costs stamina.</p><p>Moves show their reach. “Read required” means they miss at the current range, but an opponent’s approach may bring them in range.</p></section><section><h3>02 / Commit with intent</h3><p><b>1 Light</b> is fast. <b>2 Heavy</b> pressures guard. <b>3 Block</b> spends stamina only when hit. <b>4 Dodge</b> evades strikes. <b>5 Grab</b> catches guard and dodge at Close. <b>6 Recover</b> restores stamina but takes 40% extra damage.</p><p>Faster in-range attacks interrupt slower ones. Equal speeds trade. No stamina refunds for misses or interruptions. An exhausted guard takes full damage.</p></section><section><h3>03 / Know your signature</h3><p><b>7 Special:</b> Vector’s Flash step closes one band, then strikes. Rook’s Fault line pushes away on an unguarded hit. Nyx’s Prism lance hits Mid/Far. Each costs stamina and has two full turns of cooldown—even on a miss.</p><p>Consecutive dodges cost 25, then 35, then 45. Any other action resets that streak. Fighters have different health, stamina and move stats.</p></section><section><h3>04 / Break the habit</h3><p>The CPU reads your last five moves and public resources. Difficulty changes how strongly it reads habits, never its damage or access to your choice.</p><p>One round. Zero health loses; double knockouts draw. No timer, automatic regeneration or save data. <b>R</b> rematches; <b>H / Esc</b> closes help. Sound starts off; motion can be reduced in the header.</p></section></div><button id="close-help" class="primary">LET’S FIGHT ↗</button></dialog>`;
-const el = (id: string) => document.getElementById(id)!;
-const menu = document.querySelector<HTMLDialogElement>("#menu")!;
-const help = document.querySelector<HTMLDialogElement>("#instructions")!;
-const resultDialog = document.querySelector<HTMLDialogElement>("#result")!;
-const buttons = [
-  ...document.querySelectorAll<HTMLButtonElement>("[data-action]"),
-];
-const sound = new CombatAudio();
+import "./solstice.css";
+
+const $ = (id: string) => document.getElementById(id)!;
+const money = (n: number) => Math.floor(n).toLocaleString("en-US");
+const safe = (value: string) =>
+  value.replace(
+    /[&<>"']/g,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
+        c
+      ]!,
+  );
+const sun =
+  '<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M20 1 24 13 37 9 29 20 39 28 25 27 20 39 15 27 1 28 11 20 3 9 16 13Z" fill="currentColor"/><circle cx="20" cy="20" r="7" fill="#133e3a"/></svg>';
+let profile = newProfile(),
+  saveWarning = "",
+  saveBlocked = false;
+try {
+  const raw = localStorage.getItem(SAVE_KEY);
+  if (raw) profile = parseProfile(raw);
+} catch {
+  saveWarning =
+    "Your saved profile could not be loaded. It has been preserved. Import a valid backup to resume saving.";
+  saveBlocked = true;
+}
 let selected: FighterId = "vector",
-  opponent: FighterId = "rook",
-  difficulty: Difficulty = "standard";
-let state = newMatch(selected, opponent, difficulty),
-  cpuAction: Action = chooseCpu(state),
-  locked = true;
-let generation = 0,
-  timers: number[] = [],
-  damageDealt = 0,
-  damageTaken = 0;
-let reducedMotion = window.matchMedia(
-  "(prefers-reduced-motion: reduce)",
-).matches;
+  view = "play",
+  active = false,
+  paused = false,
+  loading = true,
+  reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+let current: Config = {
+  player: "vector",
+  cpu: "rook",
+  arena: "skyline",
+  difficulty: "standard",
+  mode: "duel",
+  hazards: false,
+  equipment: true,
+  countdown: true,
+};
+let setupPlayer: FighterId = selected;
+let lastWorld: WorldState | null = null,
+  lastReward: Reward | null = null,
+  helpResume = false,
+  announcementTimer = 0;
+const controls = new PlayerControls(),
+  audio = new CombatAudio();
+
+$("app").innerHTML = `
+<div id="hub" class="hub">
+ <header class="hub-header"><a class="brand" href="#" aria-label="FRAMEBREAK home">${sun}<span>FRAME<span>BREAK</span><small>THE SOLSTICE CIRCUIT</small></span></a><div class="pilot-bar"><div id="pilot-face"></div><div><b id="pilot-name">Pilot</b><small id="pilot-level"></small><div class="xp-track"><i id="pilot-xp"></i></div></div><span class="balance"><i>✦</i><b id="balance"></b><small>LUMENS</small></span></div></header>
+ <div class="hub-layout"><nav class="side-nav" aria-label="Main navigation">${[
+   ["play", "◈", "Play"],
+   ["fighters", "♜", "Fighters"],
+   ["bosses", "✧", "Boss contracts"],
+   ["profile", "◎", "Profile"],
+   ["guide", "☷", "Field manual"],
+   ["settings", "⚙", "Settings"],
+ ]
+   .map(
+     ([id, icon, name]) =>
+       `<button data-view="${id}" ${id === "play" ? 'aria-current="page"' : ""}><span>${icon}</span>${name}<i>›</i></button>`,
+   )
+   .join(
+     "",
+   )}<div class="nav-foot"><span class="online-dot"></span> CPU CIRCUIT<small>Your world. Your progress.</small></div></nav>
+ <main id="hub-content"></main></div>
+ <footer class="hub-footer"><span>${sun} POWERED BY THE SUN. DRIVEN BY YOU.</span><span id="save-status">LOCAL PROFILE · AUTO-SAVED</span><b>SOLSTICE / 5.0</b></footer>
+</div>
+<div id="match" class="match-shell" hidden>
+ <header class="match-header"><button id="leave" class="ghost">← SOLSTICE HUB</button><span id="match-label"></span><div><button id="match-help" class="ghost">CONTROLS</button><button id="pause" class="ghost">PAUSE Ⅱ</button></div></header>
+ <section class="game-frame" aria-label="Live fighting arena"><div id="arena"></div><div class="hud">${[0, 1].map((i) => `<div class="fighter-hud ${i ? "enemy" : ""}"><div id="portrait-${i}" class="hud-portrait"></div><div class="hud-data"><div class="fighter-name"><span><small>${i ? "CPU RIVAL" : "PILOT ONE"}</small><b id="name-${i}"></b></span><strong id="damage-${i}">0<small>%</small></strong></div><span id="stocks-${i}"></span><div class="shield-track"><i id="shield-${i}"></i></div><div class="meter-track"><i id="meter-${i}"></i></div><span class="meter-label" id="meter-label-${i}"></span><span class="weapon-label" id="weapon-${i}"></span></div></div>`).join("")}<div class="timer"><b id="clock">3:00</b><small id="round-label"></small></div></div><div id="announcement" class="announcement" role="status"></div><div id="boss-phase" class="boss-phase" hidden></div><div class="arena-bottom"><span id="hazard-status"></span><span id="drop-status"></span></div><div id="combo-toast" class="combo-toast"></div></section>
+ <div class="control-deck"><div><button data-key="KeyA" aria-label="Move left"><kbd>A</kbd> ←</button><button data-key="KeyD" aria-label="Move right"><kbd>D</kbd> →</button><button data-key="Space" aria-label="Jump"><kbd>SPACE</kbd> JUMP ×2</button></div><div>${[
+   ["KeyJ", "J", "STRIKE"],
+   ["KeyK", "K", "CHARGE"],
+   ["KeyL", "L", "PARRY"],
+   ["ShiftLeft", "SHIFT", "DODGE"],
+   ["KeyI", "I", "ULTIMATE"],
+   ["KeyE", "E", "PICK UP"],
+ ]
+   .map(
+     ([key, label, name]) =>
+       `<button data-key="${key}"><kbd>${label}</kbd>${name}</button>`,
+   )
+   .join(
+     "",
+   )}</div></div><div class="match-hints"><span>DOWN + J · STUN AERIAL</span><span>W + K · RECOVERY</span><span>A/D + W/S + J · AIM</span><button id="reset" class="text-button">RESTART ↻</button></div><div id="coach" class="practice-coach" hidden></div>
+</div>
+<dialog id="setup" class="panel-dialog" aria-labelledby="setup-title"><button class="close" data-close="setup" aria-label="Close setup">×</button><span class="eyebrow">YOUR ARENA. YOUR RULES.</span><h2 id="setup-title">Flight check.</h2><div class="setup-grid"><label>MODE<select id="mode"><option value="duel">Quick play · CPU duel</option><option value="training">Practice lab · free trials</option></select></label><label>RIVAL<select id="opponent">${FIGHTER_IDS.map((id) => `<option value="${id}" ${id === "rook" ? "selected" : ""}>${FIGHTERS[id].name}</option>`).join("")}</select></label><label>CPU LEVEL<select id="difficulty"><option value="rookie">Rookie</option><option value="standard" selected>Standard</option><option value="expert">Expert</option></select></label><label>PRACTICE<select id="practice"><option value="dummy">Idle dummy</option><option value="parry">Ultimate parry drill</option></select></label></div><div class="arena-options">${ARENA_IDS.map((id) => `<label><input type="radio" name="stage" value="${id}" ${id === "skyline" ? "checked" : ""}><span><b>${ARENAS[id].name}</b><small>${ARENAS[id].description}</small></span></label>`).join("")}</div><label class="check"><input type="checkbox" id="hazards" checked> Falling solar spears · red warning before impact</label><button id="start-custom" class="gold-button">DEPLOY ${sun}</button><p class="fine">Quick play and practice award no Lumens. Your equipment arrives at 5 seconds, then every 10 seconds.</p></dialog>
+<dialog id="pause-menu" class="panel-dialog compact" aria-labelledby="pause-title"><span class="eyebrow">TAKE A BREATH</span><h2 id="pause-title">Hold the light.</h2><p>The arena is paused. Your fight will wait.</p><button id="resume" class="gold-button">BACK TO THE FIGHT ↗</button><button id="pause-restart" class="soft-button">Restart this fight</button><button id="pause-leave" class="text-button">Return to hub</button></dialog>
+<dialog id="result" class="panel-dialog result-dialog" aria-labelledby="result-title"><span id="result-kicker" class="eyebrow"></span><h2 id="result-title"></h2><p id="result-copy"></p><div id="result-fighters" class="result-fighters"></div><div id="reward" class="reward-bar"></div><button id="next" class="gold-button">NEXT FIGHT ↗</button><button id="result-home" class="text-button">Return to Solstice</button></dialog>
+<dialog id="instructions" class="panel-dialog manual-dialog" aria-labelledby="help-title"><button class="close" data-close="instructions" aria-label="Close field manual">×</button><span class="eyebrow">FLIGHT SCHOOL / FIELD MANUAL</span><h2 id="help-title">Own the air.</h2><div id="manual-content"></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>`;
+
+const dialog = (id: string) => $(id) as HTMLDialogElement;
+const manual = `<div class="manual-grid"><section><h3>01 / Movement</h3><p><b>A/D or arrows</b> run and steer. <b>Space, W or Up</b> jumps twice; release early for a short hop. <b>S/Down</b> fast-falls or drops through thin platforms. Moving platforms carry you.</p><p><b>W + K, release K</b> rises back toward the stage once per airtime. Landing restores jumps and recovery.</p></section><section><h3>02 / Attacks</h3><p><b>J</b> chains strikes. <b>Down + J in the air</b> uses your character’s stun spike. Combine A/D with W/S to aim attacks diagonally. Bows and discs fire in the aimed direction.</p><p><b>Hold K / release</b> charges your special. <b>Hold I / release</b> spends full meter on an ultimate. An ultimate can hit twice, 160 ms apart, if you remain in its hitbox.</p></section><section><h3>03 / Defense & gear</h3><p><b>Tap L at impact</b>: the first 155 ms parries frontal attacks, including every ultimate. Projectiles reflect. Hold L to shield regular hits; ultimates bypass a held shield. <b>Shift</b> dodges at a shield cost.</p><p><b>E</b> picks up the nearest eligible weapon or gadget. Your two weapons arrive at 5, 15, 25… seconds. Shared weapons and gadgets arrive at 10, 20, 30… seconds. Bosses enter armed.</p></section><section><h3>04 / The circuit</h3><p>Damage % increases knockback. Launch opponents out to take stocks. Duels last 3 minutes; stocks then lower damage decide a timeout. Bosses have two reinforced stocks; you have three.</p><p>Ranked CPU wins earn Lumens and XP. Boss contracts unlock with level, pay once and allow retries after losses. Red markers warn of falling solar spears. <b>Esc/P</b> pauses. Progress saves on this browser; export a backup in Profile.</p></section></div>`;
+$("manual-content").innerHTML = manual;
+
+function toast(message: string) {
+  $("toast").textContent = message;
+  $("toast").hidden = false;
+  window.setTimeout(() => ($("toast").hidden = true), 4000);
+}
+function save(next: Profile) {
+  profile = next;
+  try {
+    if (saveBlocked) throw new Error();
+    localStorage.setItem(SAVE_KEY, JSON.stringify(profile));
+    saveWarning = "";
+  } catch {
+    saveWarning =
+      "Progress is in memory only. Export a backup from Profile before closing.";
+  }
+  updateProfileBar();
+}
+function updateProfileBar() {
+  $("pilot-name").textContent = profile.name;
+  $("pilot-level").textContent =
+    `LEVEL ${levelOf(profile)} · ${rankOf(profile.rating).toUpperCase()}`;
+  $("pilot-xp").style.width = `${xpProgress(profile) / 2.5}%`;
+  $("balance").textContent = money(profile.currency);
+  $("pilot-face").innerHTML = portrait(selected);
+  $("save-status").textContent = saveWarning
+    ? "SAVE NEEDS ATTENTION · PROFILE"
+    : "LOCAL PROFILE · AUTO-SAVED";
+}
+function heading(kicker: string, title: string, copy: string) {
+  return `<div class="page-heading"><span class="eyebrow">${kicker}</span><h1>${title}</h1><p>${copy}</p></div>`;
+}
+function fighterVisual(id: FighterId, className = "") {
+  return `<div class="crew-art ${className}" style="--col:${FIGHTER_IDS.indexOf(id) % 3};--row:${Math.floor(FIGHTER_IDS.indexOf(id) / 3)}" role="img" aria-label="${FIGHTERS[id].name} character portrait"></div>`;
+}
+function renderHub() {
+  updateProfileBar();
+  document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach((b) => {
+    if (b.dataset.view === view) b.setAttribute("aria-current", "page");
+    else b.removeAttribute("aria-current");
+  });
+  const p = profile,
+    ranked = rankedOpponent(p, selected);
+  let html = "";
+  if (view === "play")
+    html = `${heading("SEASON 01 / ROOTS & HORIZONS", "A brighter kind<br>of battle.", "Find your rhythm. Rise through the circuit. Make the sky yours.")}
+   <div class="mode-grid"><button id="quick-play" class="mode-card quick-card"><div class="card-art">${fighterVisual(selected, "hero-portrait")}</div><span class="card-label"><small>YOUR NEXT ADVENTURE</small><strong>Quick play</strong><span>Take to the gardens. Find your flow.</span></span><i>↗</i></button>
+   <button id="ranked-play" class="mode-card ranked-card"><span class="rank-emblem">${sun}</span><span class="card-label"><small>${rankOf(p.rating).toUpperCase()} · ${p.rating} RP</small><strong>Ranked circuit</strong><span>${FIGHTERS[ranked.cpu].name} · Level ${ranked.level}<br>Win ✦ ${money(rankedReward(ranked.level, p.rating))}+ Lumens</span></span><i>↗</i></button>
+   <div class="mode-stack"><button id="boss-nav" class="mode-card boss-card"><span class="card-label"><small>BIG RIVALS. BIGGER REWARDS.</small><strong>Boss contracts</strong><span>${p.defeated.length} / 4 claimed · up to ✦ 120,000</span></span><i>↗</i></button><button id="practice-nav" class="mode-card practice-card"><span class="card-label"><small>FLIGHT SCHOOL</small><strong>Practice lab</strong><span>Try every fighter. Learn every parry.</span></span><i>↗</i></button></div></div>
+   <div class="home-bottom"><div class="dispatch"><span class="eyebrow">WELCOME TO SOLSTICE GARDENS</span><strong>Built for a higher tomorrow.</strong><p>Living cities. Moving skybridges. Solar-powered rivals.</p></div><button id="loadout-nav" class="loadout-card">${portrait(selected)}<span><small>YOUR PILOT</small><b>${FIGHTERS[selected].name}</b><small>${SIGNATURES[selected].map((w) => w.name).join(" / ")}</small></span><i>›</i></button></div>`;
+  if (view === "fighters")
+    html = `${heading("THE SOLSTICE CREW / 6 PILOTS", "Find your spark.", "Earn Lumens in ranked matches and boss contracts. Every fighter can be tried in Practice.")}
+   <div class="fighter-grid">${FIGHTER_IDS.map((id) => {
+     const f = FIGHTERS[id],
+       owned = p.unlocked.includes(id);
+     return `<article class="crew-card ${selected === id ? "selected" : ""}">${fighterVisual(id)}<div class="crew-info"><span class="eyebrow">${f.title}</span><h2>${f.name}<span class="power" aria-label="Power tier ${POWER[id]}">${"◆".repeat(POWER[id])}</span></h2><p>${f.bio}</p><div class="weapon-pair">${SIGNATURES[id].map((w) => `<span><b>${w.name}</b><small>${w.description}</small></span>`).join("")}</div><small class="move-info">DOWN-AIR / ${f.downAir} · ${f.downAirStun}s stun</small><div class="crew-actions">${owned ? `<button data-select="${id}" class="${selected === id ? "soft-button" : "gold-button"}">${selected === id ? "SELECTED ✓" : "SELECT PILOT"}</button>` : `<button data-buy="${id}" class="gold-button" ${p.currency < PRICES[id] ? "disabled" : ""}>UNLOCK ✦ ${money(PRICES[id])}</button>`}<button data-trial="${id}" class="text-button">Try ↗</button></div></div></article>`;
+   }).join("")}</div>`;
+  if (view === "bosses")
+    html = `${heading("ONE VICTORY. A LASTING LEGACY.", "Answer the sun.", "Bosses arrive armed, have two reinforced stocks and awaken a second phase. Retry losses; each bounty pays once.")}
+   <div class="boss-grid">${BOSS_IDS.map((id, i) => {
+     const b = BOSSES[id],
+       done = p.defeated.includes(id),
+       open = bossAvailable(p, id);
+     return `<article class="contract ${done ? "claimed" : ""}"><div class="boss-art" style="--boss:${i};--boss-color:${FIGHTERS[id].accent}">${portrait(id)}<span class="contract-no">0${i + 1}</span></div><div class="contract-body"><span class="eyebrow">${done ? "CONTRACT COMPLETE" : `LEVEL ${b.level}+ · ${ARENAS[b.arena].name.toUpperCase()}`}</span><h2>${FIGHTERS[id].name}</h2><p>${FIGHTERS[id].bio}</p><small>${b.phase}</small><div class="bounty">✦ ${money(b.reward)}<span>ONE-TIME BOUNTY · +${b.xp} XP</span></div><button data-boss="${id}" class="${open ? "gold-button" : "soft-button"}" ${!open ? "disabled" : ""}>${done ? "CLAIMED ✓" : open ? "ACCEPT CONTRACT ↗" : `UNLOCKS AT LEVEL ${b.level}`}</button></div></article>`;
+   }).join("")}</div>`;
+  if (view === "profile")
+    html = `${heading("YOUR JOURNEY / SAVED ON THIS BROWSER", "A little more radiant.", "Ranked wins grow your level, currency and crew. Export a save to take your progress with you.")}
+   <section class="profile-panel"><div class="profile-identity">${fighterVisual(selected)}<div><span class="eyebrow">LEVEL ${levelOf(p)}</span><h2>${safe(p.name)}</h2><p>${rankOf(p.rating)} · ${p.rating} RP</p><label>PILOT NAME<input id="profile-name" maxlength="24" value="${safe(p.name)}"></label><button id="save-name" class="soft-button">Save name</button></div></div><div class="profile-stats">${[
+     [money(p.currency), "LUMENS"],
+     [`${xpProgress(p)} / 250`, "XP TO NEXT LEVEL"],
+     [p.wins, "WINS"],
+     [p.losses, "LOSSES"],
+     [p.bestStreak, "BEST WIN STREAK"],
+     [money(p.damage), "TOTAL DAMAGE DEALT"],
+     [p.parries, "PERFECT PARRIES"],
+     [`${p.defeated.length} / 4`, "BOSS CONTRACTS"],
+   ]
+     .map(([n, label]) => `<div><b>${n}</b><span>${label}</span></div>`)
+     .join(
+       "",
+     )}</div><p class="save-note">${safe(saveWarning || "Auto-save is active. Saves belong to this browser and address; export before clearing browser data or moving to another device.")}</p><div class="backup-actions"><button id="export-save" class="gold-button">EXPORT SAVE ↓</button><label class="soft-button file-label">IMPORT SAVE ↑<input id="import-save" type="file" accept="application/json,.json"></label></div><p class="fine">Import replaces this local profile after confirmation. This offline ladder has no shared leaderboard or server verification.</p></section>`;
+  if (view === "guide")
+    html = `${heading("FIELD MANUAL / A LITTLE FLIGHT SCHOOL", "Own the air.", "Movement, timing and a well-placed parry make all the difference.")}<section class="glass-panel">${manual}</section>`;
+  if (view === "settings")
+    html = `${heading("MAKE YOURSELF AT HOME", "Your atmosphere.", "Audio begins off. Settings apply for this session.")}<section class="settings-panel"><div><span><b>Sound effects</b><small>Strikes, parries, gear and ring-outs.</small></span><button id="sound" class="soft-button" aria-pressed="${audio.enabled}">${audio.enabled ? "ON" : "OFF"}</button></div><div><span><b>Solar soundtrack</b><small>An original, softly synthesized loop.</small></span><button id="music" class="soft-button" aria-pressed="${audio.musicEnabled}">${audio.musicEnabled ? "ON" : "OFF"}</button></div><div><span><b>Reduce motion</b><small>Suppress cosmetic shake and particles; moving platforms remain visible.</small></span><button id="motion" class="soft-button" aria-pressed="${reduced}">${reduced ? "ON" : "OFF"}</button></div><p class="fine">Keyboard + mouse · local single player · no account required.</p></section>`;
+  $("hub-content").innerHTML = html;
+  bindHub();
+}
+function on(id: string, fn: () => void) {
+  document.getElementById(id)?.addEventListener("click", fn);
+}
+function changeView(next: string) {
+  view = next;
+  renderHub();
+  $("hub-content").scrollTop = 0;
+  window.scrollTo(0, 0);
+}
+function openSetup(training = false, fighter?: FighterId) {
+  setupPlayer = fighter ?? selected;
+  ($("mode") as HTMLSelectElement).value = training ? "training" : "duel";
+  updateSetup();
+  dialog("setup").showModal();
+}
+function updateSetup() {
+  const practice = ($("mode") as HTMLSelectElement).value === "training";
+  ($("difficulty") as HTMLSelectElement).disabled = practice;
+  ($("practice") as HTMLSelectElement).disabled = !practice;
+}
+function bindHub() {
+  on("quick-play", () => openSetup());
+  on("practice-nav", () => openSetup(true));
+  on("boss-nav", () => changeView("bosses"));
+  on("loadout-nav", () => changeView("fighters"));
+  on("ranked-play", startRanked);
+  document.querySelectorAll<HTMLButtonElement>("[data-select]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        selected = b.dataset.select as FighterId;
+        renderHub();
+      }),
+  );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-trial]")
+    .forEach(
+      (b) => (b.onclick = () => openSetup(true, b.dataset.trial as FighterId)),
+    );
+  document.querySelectorAll<HTMLButtonElement>("[data-buy]").forEach(
+    (b) =>
+      (b.onclick = () => {
+        try {
+          const id = b.dataset.buy as FighterId;
+          save(purchase(profile, id));
+          selected = id;
+          renderHub();
+          toast(`${FIGHTERS[id].name} joined your crew.`);
+        } catch (e) {
+          toast((e as Error).message);
+        }
+      }),
+  );
+  document
+    .querySelectorAll<HTMLButtonElement>("[data-boss]")
+    .forEach((b) => (b.onclick = () => startBoss(b.dataset.boss as BossId)));
+  on("save-name", () => {
+    const name = ($("profile-name") as HTMLInputElement).value.trim();
+    if (name) {
+      save({ ...profile, name: name.slice(0, 24) });
+      renderHub();
+      toast("Pilot name saved.");
+    }
+  });
+  on("export-save", () => {
+    const blob = new Blob([JSON.stringify(profile, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "framebreak-solstice-save.json";
+    a.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  document
+    .getElementById("import-save")
+    ?.addEventListener("change", async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      try {
+        if (file.size > 100000)
+          throw new Error("That file is too large to be a save.");
+        const next = parseProfile(await file.text());
+        if (
+          !confirm(
+            `Replace this profile with ${next.name}, level ${levelOf(next)}?`,
+          )
+        )
+          return;
+        saveBlocked = false;
+        save(next);
+        selected = "vector";
+        renderHub();
+        toast("Save imported.");
+      } catch (error) {
+        toast((error as Error).message);
+      }
+    });
+  on("sound", async () => {
+    await audio.setEnabled(!audio.enabled);
+    renderHub();
+  });
+  on("music", async () => {
+    await audio.setMusic(!audio.musicEnabled);
+    audio.pauseMusic(false);
+    renderHub();
+  });
+  on("motion", () => {
+    reduced = !reduced;
+    setMotion();
+    renderHub();
+  });
+}
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: "arena",
-  width: 1100,
-  height: 360,
-  backgroundColor: "#171331",
+  width: 1200,
+  height: 680,
+  backgroundColor: "#9bd5cf",
   scene: Arena,
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   render: { antialias: true },
   audio: { noAudio: true },
+  callbacks: {
+    preBoot: (g) => {
+      g.registry.set("controls", controls);
+      g.registry.set("config", current);
+      g.registry.set("reducedMotion", reduced);
+    },
+  },
 });
-game.registry.set("match", state);
-game.registry.set("reducedMotion", reducedMotion);
-function selectFighter(id: FighterId) {
-  selected = id;
-  document
-    .querySelectorAll<HTMLButtonElement>("[data-fighter]")
-    .forEach((b) =>
-      b.setAttribute("aria-pressed", String(b.dataset.fighter === id)),
-    );
-  const f = FIGHTERS[id],
-    special = getMove("special", id);
-  el("fighter-detail").innerHTML =
-    `<p>${f.bio}</p><div><span><b>${f.maxHealth}</b> HEALTH</span><span><b>${f.maxStamina}</b> STAMINA</span><span><b>${special.name}</b> SIGNATURE</span></div>`;
+game.events.once("arena-ready", () => {
+  loading = false;
+});
+function setMotion() {
+  document.body.classList.toggle("reduced-motion", reduced);
+  game.registry.set("reducedMotion", reduced);
+  game.events.emit("motion-change", reduced);
 }
-function update() {
-  [state.player, state.cpu].forEach((f, i) => {
-    const def = FIGHTERS[f.id];
-    el(`hp${i}`).innerHTML = `${f.health}<small> / ${def.maxHealth}</small>`;
-    el(`sp${i}`).textContent = `${f.stamina} / ${def.maxStamina}`;
-    el(`health${i}`).style.width = `${(f.health / def.maxHealth) * 100}%`;
-    el(`stamina${i}`).style.width = `${(f.stamina / def.maxStamina) * 100}%`;
-    el(`signature-${i}`).textContent =
-      `${getMove("special", f.id).name} / ${f.specialCooldown ? `READY IN ${f.specialCooldown}T` : "READY"}`;
-    el(`health${i}`).style.background = def.accent;
-    el(`fighter-${i}`).textContent = def.name;
-    el(`role-${i}`).textContent = i
-      ? `CPU / ${def.personality.toUpperCase()} / ${state.difficulty.toUpperCase()}`
-      : `YOU / ${def.title}`;
+function deploy(config: Config) {
+  if (loading) {
+    toast("Preparing the solar arena. Try again in a moment.");
+    return;
+  }
+  if (config.mode !== "training" && !profile.unlocked.includes(config.player)) {
+    toast("Unlock this fighter or try them in Practice.");
+    return;
+  }
+  current = {
+    ...config,
+    countdown: true,
+    equipment: true,
+    matchId: crypto.randomUUID(),
+    playerLevel: levelOf(profile),
+  };
+  ["setup", "pause-menu", "result", "instructions"].forEach((id) => {
+    if (dialog(id).open) dialog(id).close();
   });
-  el("turn").textContent =
-    `EXCHANGE ${String(state.turn - (state.outcome ? 1 : 0)).padStart(2, "0")}`;
-  el("distance").innerHTML = DISTANCES.map(
-    (d) =>
-      `<span class="${state.distance === d ? "active" : ""}">${d.toUpperCase()}</span>`,
-  ).join("<i>—</i>");
-  el("range-hint").textContent =
-    state.distance === "close"
-      ? "GRABS IN REACH"
-      : state.distance === "far"
-        ? "LONG-RANGE READS"
-        : "WATCH THE APPROACH";
-  buttons.forEach((button) => {
-    const a = button.dataset.action as Action,
-      move = getMove(a, state.player.id),
-      reason = unavailableReason(a, state.player);
-    button.disabled = locked || !!reason;
-    button.title = reason ?? move.description;
-    if (a === "advance" || a === "retreat") return;
-    el(`name-${a}`).textContent = move.name;
-    el(`cost-${a}`).textContent =
-      a === "recover"
-        ? `+${move.recovery} ST`
-        : a === "block"
-          ? "ON HIT"
-          : `−${cost(a, state.player)} ST`;
-    el(`stats-${a}`).textContent = move.damage
-      ? `${move.damage} DMG · ${move.speed} SPEED`
-      : a === "block"
-        ? "GUARD / LOSES TO GRAB"
-        : a === "dodge"
-          ? "EVADE / LOSES TO GRAB"
-          : "RECOVERY / VULNERABLE";
-    el(`desc-${a}`).textContent = move.description;
-    const inRange =
-      move.range.includes(shiftDistance(state.distance, move.movement ?? 0)) ||
-      !move.range.length;
-    el(`reach-${a}`).textContent =
-      reason ??
-      (move.range.length
-        ? `${move.range.join(" / ").toUpperCase()}${!inRange ? " · READ REQUIRED" : ""}`
-        : "ALL RANGES");
-    el(`reach-${a}`).classList.toggle("out-of-range", !inRange && !reason);
+  active = true;
+  paused = false;
+  lastReward = null;
+  lastWorld = null;
+  $("hub").hidden = true;
+  $("match").hidden = false;
+  document.body.classList.add("in-match");
+  window.scrollTo(0, 0);
+  game.scale.refresh();
+  game.events.emit("start-fight", current, true);
+  audio.pauseMusic(false);
+  $("match-label").textContent =
+    `${ARENAS[current.arena].name.toUpperCase()} / ${current.mode === "ranked" ? "RANKED CPU" : current.mode === "boss" ? "BOSS CONTRACT" : current.mode === "training" ? "PRACTICE LAB" : "QUICK PLAY"}`;
+  $("portrait-0").innerHTML = portrait(current.player);
+  $("portrait-1").innerHTML = portrait(current.cpu);
+  $("coach").hidden = current.mode !== "training";
+  clearTimeout(announcementTimer);
+  $("announcement").textContent = "";
+}
+function startRanked() {
+  const rival = rankedOpponent(profile, selected);
+  deploy({
+    player: selected,
+    cpu: rival.cpu,
+    arena: rival.arena,
+    mode: "ranked",
+    difficulty: "expert",
+    hazards: true,
+    opponentLevel: rival.level,
   });
-  el("history").textContent =
-    `LAST FIVE / ${state.player.history.map((a) => getMove(a, state.player.id).name).join(" · ") || "YOUR STORY STARTS HERE"}`;
 }
-function cancelPending() {
-  generation++;
-  timers.forEach(clearTimeout);
-  timers = [];
-}
-function reset() {
-  cancelPending();
-  state = newMatch(selected, opponent, difficulty);
-  cpuAction = chooseCpu(state);
-  locked = false;
-  damageDealt = 0;
-  damageTaken = 0;
-  game.registry.set("match", state);
-  game.events.emit("reset-arena");
-  [menu, help, resultDialog].forEach((d) => {
-    if (d.open) d.close();
+function startBoss(id: BossId) {
+  if (!bossAvailable(profile, id)) {
+    toast("This contract is locked or already claimed.");
+    return;
+  }
+  const boss = BOSSES[id];
+  deploy({
+    player: selected,
+    cpu: id,
+    arena: boss.arena,
+    mode: "boss",
+    difficulty: "expert",
+    hazards: true,
+    opponentLevel: Math.max(levelOf(profile), boss.level),
   });
-  el("portrait-0").innerHTML = portrait(state.player.id);
-  el("portrait-1").innerHTML = portrait(state.cpu.id);
-  el("reveal").textContent = "";
-  el("phase").textContent = "Choose your next read";
-  el("cpu-status").textContent = "● RIVAL LOCKED IN";
-  el("log").innerHTML = "<p>The city is watching. Make your opening read.</p>";
-  el("log-tag").textContent = "WAITING FOR THE FIRST SPARK";
-  el("read").textContent =
-    `${FIGHTERS[opponent].name} ${opponent === "rook" ? "wants to get close. Deny the grab or meet it with speed." : opponent === "nyx" ? "owns the outside. Close the gap before the beam arrives." : "closes distance fast. Anticipate the rush."}`;
-  buttons.forEach((b) => b.classList.remove("selected"));
-  update();
-  sound.play("select");
 }
-function showRoster() {
-  cancelPending();
-  locked = true;
-  el("reveal").textContent = "";
-  if (resultDialog.open) resultDialog.close();
-  if (help.open) help.close();
-  if (!menu.open) menu.showModal();
-  update();
+function restart() {
+  if (
+    current.mode === "boss" &&
+    !bossAvailable(profile, current.cpu as BossId)
+  ) {
+    home();
+    return;
+  }
+  deploy({ ...current });
 }
-function delay(callback: () => void, ms: number) {
-  const token = generation;
-  timers.push(
-    window.setTimeout(() => {
-      if (token === generation) callback();
-    }, ms),
+function home() {
+  active = false;
+  paused = true;
+  game.events.emit("pause-fight", true);
+  ["pause-menu", "result", "instructions"].forEach((id) => {
+    if (dialog(id).open) dialog(id).close();
+  });
+  $("match").hidden = true;
+  $("hub").hidden = false;
+  document.body.classList.remove("in-match");
+  window.scrollTo(0, 0);
+  if (!profile.unlocked.includes(selected)) selected = "vector";
+  clearTimeout(announcementTimer);
+  audio.pauseMusic(false);
+  renderHub();
+}
+function pause(value = true) {
+  if (!active) return;
+  paused = value;
+  game.events.emit("pause-fight", value);
+  audio.pauseMusic(value);
+  if (value && !dialog("pause-menu").open && !dialog("instructions").open)
+    dialog("pause-menu").showModal();
+  if (!value && dialog("pause-menu").open) dialog("pause-menu").close();
+}
+function announce(text: string, duration = 1100) {
+  clearTimeout(announcementTimer);
+  $("announcement").textContent = text;
+  announcementTimer = window.setTimeout(
+    () => ($("announcement").textContent = ""),
+    duration,
   );
 }
-function commit(action: Action) {
-  if (
-    locked ||
-    menu.open ||
-    help.open ||
-    resultDialog.open ||
-    !canUse(action, state.player)
-  )
-    return;
-  locked = true;
-  update();
-  sound.play("select");
-  buttons.find((b) => b.dataset.action === action)?.classList.add("selected");
-  const ownMove = getMove(action, state.player.id),
-    enemyMove = getMove(cpuAction, state.cpu.id),
-    result = resolveTurn(state, action, cpuAction);
-  el("phase").textContent = "Committed. Trust the read.";
-  el("cpu-status").textContent = "REVEALING BOTH CHOICES";
-  el("reveal").innerHTML =
-    `<small>YOU LOCKED IN</small><strong>${ownMove.name}</strong>`;
-  delay(() => {
-    sound.play("reveal");
-    el("reveal").innerHTML =
-      `<strong>${ownMove.name}</strong><small>VS</small><strong class="rival-move">${enemyMove.name}</strong>`;
-  }, 400);
-  delay(() => {
-    state = result.state;
-    game.registry.set("match", state);
-    game.events.emit("resolve", result);
-    update();
-    damageDealt += result.damage[1];
-    damageTaken += result.damage[0];
-    sound.play(result.damage.some(Boolean) ? "hit" : "guard");
-    const entry = document.createElement("div");
-    entry.className = "log-entry";
-    const title = document.createElement("b");
-    title.textContent = `${String(state.turn - 1).padStart(2, "0")} / ${ownMove.name} × ${enemyMove.name}`;
-    entry.append(title);
-    result.messages.forEach((message) => {
-      const p = document.createElement("p");
-      p.textContent = message;
-      entry.append(p);
-    });
-    const p = document.createElement("p");
-    p.className = "stamina-summary";
-    p.textContent = `STAMINA  YOU ${result.staminaDelta[0] >= 0 ? "+" : ""}${result.staminaDelta[0]} / ${FIGHTERS[state.cpu.id].name.toUpperCase()} ${result.staminaDelta[1] >= 0 ? "+" : ""}${result.staminaDelta[1]}`;
-    entry.append(p);
-    el("log").prepend(entry);
-    el("log").scrollTop = 0;
-    while (el("log").children.length > 6) el("log").lastElementChild?.remove();
-    el("log-tag").textContent = `EXCHANGE ${state.turn - 1}`;
-  }, 850);
-  delay(() => {
-    buttons.forEach((b) => b.classList.remove("selected"));
-    el("reveal").textContent = "";
-    if (state.outcome) {
-      el("phase").textContent = "Round complete";
-      el("cpu-status").textContent = "THE READ IS SETTLED";
-      el("result-kicker").textContent =
-        state.outcome.toUpperCase() + " / NEON CIRCUIT";
-      el("result-title").textContent =
-        state.outcome === "victory"
-          ? "You broke the pattern."
-          : state.outcome === "defeat"
-            ? "A read worth learning."
-            : "Same frame. Same fate.";
-      el("result-copy").textContent =
-        state.outcome === "victory"
-          ? `${FIGHTERS[state.player.id].name} takes the rooftop. Ready for another rival?`
-          : state.outcome === "defeat"
-            ? `${FIGHTERS[state.cpu.id].name} had the last word. Change your rhythm and run it back.`
-            : "A double knockout. Nobody saw that coming.";
-      el("result-stats").innerHTML =
-        `<span><b>${state.turn - 1}</b>EXCHANGES</span><span><b>${damageDealt}</b>DAMAGE DEALT</span><span><b>${damageTaken}</b>DAMAGE TAKEN</span>`;
-      if (help.open) help.close();
-      resultDialog.showModal();
-      sound.play(state.outcome === "victory" ? "win" : "lose");
-    } else {
-      cpuAction = chooseCpu(state);
-      locked = false;
-      el("phase").textContent = "Choose your next read";
-      el("cpu-status").textContent = "● RIVAL LOCKED IN";
-      el("read").textContent =
-        state.player.stamina < 20
-          ? "Running on fumes. Recover creates an opening—distance can buy breathing room."
-          : state.player.history.length > 1 &&
-              state.player.history.slice(-2).every((a) => a === action)
-            ? "Same move, twice. Are you building a pattern—or setting a trap?"
-            : state.distance === "far"
-              ? "Space is a resource. Recover, approach, or threaten a long-range signature."
-              : "Predict the next range, not just the next move. A retreat can make a grab whiff.";
-    }
-    update();
-  }, 2050);
+function hud(w: WorldState) {
+  lastWorld = w;
+  w.fighters.forEach((f, i) => {
+    const def = FIGHTERS[f.id];
+    $(`name-${i}`).textContent = def.name;
+    $(`damage-${i}`).innerHTML = `${Math.round(f.damage)}<small>%</small>`;
+    $(`damage-${i}`).style.color =
+      f.damage > 110 ? "#ff857c" : f.damage > 60 ? "#ffd16e" : "#fff7e8";
+    $(`stocks-${i}`).textContent =
+      w.config.mode === "training"
+        ? "∞ STOCKS"
+        : `${"●".repeat(f.stocks)}${"○".repeat(Math.max(0, (isBoss(f.id) ? 2 : 3) - f.stocks))} · ${f.stocks} STOCKS`;
+    $(`shield-${i}`).style.width = `${f.shield}%`;
+    $(`meter-${i}`).style.width = `${f.meter}%`;
+    $(`meter-${i}`).style.background = def.accent;
+    $(`meter-label-${i}`).textContent =
+      f.meter >= 100
+        ? `${def.ultimate.toUpperCase()} · READY`
+        : `${def.ultimate.toUpperCase()} · ${Math.floor(f.meter)}%`;
+    $(`weapon-${i}`).textContent = f.weapon
+      ? WEAPONS[f.weapon].name.toUpperCase()
+      : "UNARMED · E TO EQUIP";
+  });
+  $("clock").textContent =
+    w.countdown > 0
+      ? String(Math.ceil(w.countdown))
+      : w.config.mode === "training"
+        ? "∞"
+        : `${Math.floor(Math.ceil(w.remaining) / 60)}:${String(Math.ceil(w.remaining) % 60).padStart(2, "0")}`;
+  $("round-label").textContent = paused
+    ? "PAUSED"
+    : w.countdown > 0
+      ? "DEPLOYING"
+      : w.config.mode === "boss"
+        ? "BOSS CONTRACT"
+        : w.config.mode === "ranked"
+          ? `${rankOf(profile.rating).toUpperCase()}`
+          : w.config.mode === "training"
+            ? "PRACTICE"
+            : "3 STOCKS";
+  const phase = w.time % 12;
+  $("hazard-status").textContent = !w.config.hazards
+    ? "SOLAR WEATHER / CLEAR"
+    : phase > 8.3 && phase < 10
+      ? `⚠ ${ARENAS[w.config.arena].hazardName} · ${(10 - phase).toFixed(1)}s`
+      : phase >= 10 && phase < 10.35
+        ? "⚠ SPEAR IMPACT"
+        : "SOLAR WEATHER / CLEAR";
+  $("hazard-status").classList.toggle(
+    "warning",
+    w.config.hazards && phase > 8.3 && phase < 10.35,
+  );
+  $("drop-status").textContent =
+    w.countdown > 0
+      ? "DELIVERY DRONES INBOUND"
+      : `SIGNATURE GEAR ${Math.ceil(Math.max(0, 5 + w.signatureWave * 10 - w.time))}s · SUPPLY ${Math.ceil(Math.max(0, 10 + w.supplyWave * 10 - w.time))}s · E PICK UP`;
+  $("boss-phase").hidden = w.config.mode !== "boss";
+  $("boss-phase").textContent =
+    `PHASE ${w.bossPhase} / ${w.bossPhase === 2 ? "AWAKENED · WEAPON SWITCH" : "THE CHALLENGE BEGINS"}`;
+  const f = w.fighters[0];
+  $("combo-toast").textContent =
+    w.time - f.comboAt < 1 && f.comboHits > 1 ? `${f.comboHits} HIT COMBO` : "";
+  if (w.config.mode === "training")
+    $("coach").innerHTML =
+      `<b>PRACTICE COACH</b><span>${f.hits ? "✓" : "○"} LAND A HIT</span><span>${f.parries ? "✓" : "○"} PARRY A STRIKE</span><span>${f.weapon ? "✓" : "○"} EQUIP A WEAPON</span><span>${f.kos ? "✓" : "○"} SCORE A RING-OUT</span><small>${w.config.practice === "parry" ? "Face the rival and tap L as their ultimate arrives." : "Full meter, infinite stocks. Try Down + J, both signature weapons and charged ultimates."}</small>`;
 }
-function openHelp() {
-  if (!help.open) help.showModal();
+function ended(w: WorldState) {
+  active = false;
+  paused = false;
+  audio.pauseMusic(true);
+  clearTimeout(announcementTimer);
+  $("announcement").textContent = "";
+  const settled = settleMatch(profile, w);
+  lastReward = settled.reward;
+  if (settled.profile !== profile) save(settled.profile);
+  const won = w.winner === 0,
+    draw = w.winner === "draw";
+  $("result-kicker").textContent = lastReward.firstClear
+    ? "CONTRACT CLEARED / BOUNTY CLAIMED"
+    : draw
+      ? "DRAW"
+      : won
+        ? "VICTORY / WELL FLOWN"
+        : "DEFEAT / ANOTHER DAWN";
+  $("result-title").textContent = won
+    ? "A little more radiant."
+    : draw
+      ? "Even at the horizon."
+      : "The sky is still yours.";
+  $("result-copy").textContent = lastReward.firstClear
+    ? "This boss bounty is permanently claimed. A greater challenge awaits."
+    : won
+      ? "Your next rival is waiting. Keep the light moving."
+      : "Find the recovery route. Watch the red markers. Time the next parry.";
+  $("result-fighters").innerHTML = w.fighters
+    .map(
+      (f, i) =>
+        `<article class="result-pilot">${portrait(f.id)}<div><small>${i ? "OPPONENT" : "YOU"}${w.winner === i ? " · WINNER" : ""}</small><h3>${FIGHTERS[f.id].name}</h3><dl><div><dt>DAMAGE DEALT</dt><dd>${Math.round(f.damageDealt)}%</dd></div><div><dt>DAMAGE RECEIVED</dt><dd>${Math.round(f.damageTaken)}%</dd></div><div><dt>RING-OUTS / HITS</dt><dd>${f.kos} / ${f.hits}</dd></div><div><dt>PARRIES / BEST COMBO</dt><dd>${f.parries} / ${f.bestCombo}</dd></div></dl></div></article>`,
+    )
+    .join("");
+  $("reward").innerHTML =
+    current.mode === "ranked" || current.mode === "boss"
+      ? `<span><b>+${money(lastReward.lumens)} ✦</b>LUMENS</span><span><b>+${lastReward.xp}</b>XP</span><span><b>${lastReward.rating >= 0 ? "+" : ""}${lastReward.rating}</b>RANK POINTS</span><span><b>${levelOf(profile)}</b>PILOT LEVEL</span>`
+      : "<span>Training and quick play award no currency. Enter the ranked circuit to grow your crew.</span>";
+  $("next").textContent = lastReward.firstClear
+    ? "VIEW BOSS CONTRACTS ↗"
+    : current.mode === "ranked"
+      ? "NEXT RANKED RIVAL ↗"
+      : "RUN IT BACK ↗";
+  dialog("result").showModal();
+  audio.play(won ? "win" : "lose");
 }
-buttons.forEach((b) =>
-  b.addEventListener("click", () => commit(b.dataset.action as Action)),
-);
-document.querySelectorAll<HTMLButtonElement>("[data-fighter]").forEach((b) =>
-  b.addEventListener("click", () => {
-    selectFighter(b.dataset.fighter as FighterId);
-    sound.play("select");
-  }),
-);
-el("opponent").addEventListener("change", (e) => {
-  opponent = (e.target as HTMLSelectElement).value as FighterId;
-});
-el("difficulty").addEventListener("change", (e) => {
-  difficulty = (e.target as HTMLSelectElement).value as Difficulty;
-});
-["start", "restart", "rematch"].forEach((id) =>
-  el(id).addEventListener("click", reset),
-);
-["roster", "result-roster"].forEach((id) =>
-  el(id).addEventListener("click", showRoster),
-);
+function combatEvent(e: GameEvent) {
+  if (e.type === "hit") audio.play("hit");
+  else if (e.type === "parry") {
+    audio.play("parry");
+    announce(e.text ?? "PERFECT PARRY");
+  } else if (e.type === "ko") {
+    audio.play("ko");
+    announce(e.text ?? "RING OUT");
+  } else if (e.type === "pickup") {
+    audio.play("select");
+  } else if (e.type === "jump") audio.play("jump");
+  else if (e.type === "charge") audio.play("charge");
+  else if (e.type === "guard") audio.play("guard");
+}
+game.events.on("world-update", hud);
+game.events.on("fight-ended", ended);
+game.events.on("combat-event", combatEvent);
+document
+  .querySelectorAll<HTMLButtonElement>("[data-view]")
+  .forEach((b) => (b.onclick = () => changeView(b.dataset.view!)));
 document.querySelector(".brand")!.addEventListener("click", (e) => {
   e.preventDefault();
-  showRoster();
+  changeView("play");
 });
-["help", "menu-help"].forEach((id) =>
-  el(id).addEventListener("click", openHelp),
+document
+  .querySelectorAll<HTMLButtonElement>("[data-close]")
+  .forEach((b) => (b.onclick = () => dialog(b.dataset.close!).close()));
+$("mode").addEventListener("change", updateSetup);
+on("start-custom", () =>
+  deploy({
+    player: setupPlayer,
+    cpu: ($("opponent") as HTMLSelectElement).value as FighterId,
+    arena: (
+      document.querySelector('input[name="stage"]:checked') as HTMLInputElement
+    ).value as ArenaId,
+    difficulty: ($("difficulty") as HTMLSelectElement).value as Difficulty,
+    mode: ($("mode") as HTMLSelectElement).value as "duel" | "training",
+    practice: ($("practice") as HTMLSelectElement).value as "dummy" | "parry",
+    hazards: ($("hazards") as HTMLInputElement).checked,
+  }),
 );
-el("close-help").addEventListener("click", () => help.close());
-[menu, resultDialog].forEach((d) =>
-  d.addEventListener("cancel", (e) => e.preventDefault()),
-);
-el("sound").addEventListener("click", async () => {
-  await sound.setEnabled(!sound.enabled);
-  el("sound").textContent = `SOUND ${sound.enabled ? "ON" : "OFF"}`;
-  el("sound").setAttribute("aria-pressed", String(sound.enabled));
+on("pause", () => pause(!paused));
+on("resume", () => pause(false));
+on("reset", restart);
+on("pause-restart", restart);
+on("leave", home);
+on("pause-leave", home);
+on("result-home", home);
+on("next", () => {
+  if (lastReward?.firstClear) {
+    view = "bosses";
+    home();
+  } else if (current.mode === "ranked") startRanked();
+  else restart();
 });
-function updateMotion() {
-  document.body.classList.toggle("reduced-motion", reducedMotion);
-  game.registry.set("reducedMotion", reducedMotion);
-  game.events.emit("motion-change", reducedMotion);
-  el("motion").setAttribute("aria-pressed", String(reducedMotion));
-  el("motion").textContent = reducedMotion ? "MOTION REDUCED" : "REDUCE MOTION";
-}
-el("motion").addEventListener("click", () => {
-  reducedMotion = !reducedMotion;
-  updateMotion();
+on("match-help", () => {
+  helpResume = active && !paused;
+  if (helpResume) {
+    paused = true;
+    game.events.emit("pause-fight", true);
+    audio.pauseMusic(true);
+  }
+  dialog("instructions").showModal();
+});
+dialog("instructions").addEventListener("close", () => {
+  if (helpResume && active) pause(false);
+  helpResume = false;
+});
+dialog("pause-menu").addEventListener("cancel", (e) => {
+  e.preventDefault();
+  pause(false);
+});
+dialog("result").addEventListener("cancel", (e) => e.preventDefault());
+document.querySelectorAll<HTMLButtonElement>("[data-key]").forEach((b) => {
+  b.addEventListener("pointerdown", (e) => {
+    b.setPointerCapture(e.pointerId);
+    controls.set(b.dataset.key!, true);
+  });
+  ["pointerup", "pointercancel", "lostpointercapture"].forEach((type) =>
+    b.addEventListener(type, () => controls.set(b.dataset.key!, false)),
+  );
 });
 window.addEventListener("keydown", (e) => {
   if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return;
-  const target = e.target as HTMLElement;
-  if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
-  if (e.key.toLowerCase() === "h") {
-    e.preventDefault();
-    help.open ? help.close() : openHelp();
-  } else if (e.key.toLowerCase() === "r" && !help.open && !menu.open) reset();
-  else {
-    const action = ACTIONS.find(
-      (a) => KEYS[a].toLowerCase() === e.key.toLowerCase(),
-    );
-    if (action) {
+  if (
+    active &&
+    !dialog("instructions").open &&
+    (e.code === "KeyP" || e.key === "Escape")
+  ) {
+    if (dialog("pause-menu").open) {
+      if (e.code === "KeyP") {
+        e.preventDefault();
+        pause(false);
+      }
+    } else {
       e.preventDefault();
-      commit(action);
+      pause();
     }
   }
 });
-selectFighter(selected);
-update();
-updateMotion();
-menu.showModal();
+window.addEventListener("blur", () => {
+  if (active && !paused && !dialog("instructions").open) pause();
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && active && !paused) pause();
+});
+setMotion();
+renderHub();

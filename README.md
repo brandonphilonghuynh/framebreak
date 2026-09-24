@@ -1,79 +1,104 @@
-# FRAMEBREAK — Neon Circuit 1.0
+# FRAMEBREAK — The Solstice Circuit
 
-A finished, compact single-player tactical fighting game built with Phaser, TypeScript and Vite. Choose Vector, Rook or Nyx, read your rival’s habits, and commit a move in secret. Both choices reveal together. Footwork sets the distance; speed, reach and defensive state decide the exchange.
+A single-player **solarpunk platform fighter** built with Phaser, TypeScript and Vite. Run, double-jump, aim diagonally, charge signature moves and parry even an ultimate. Earn Lumens against competitive CPUs, recruit six pilots and defeat four non-playable solar bosses.
+
+[Public GitHub repository](https://github.com/brandonphilonghuynh/framebreak)
+
+![Solstice Gardens](public/art/solstice-gardens.png)
 
 ## Play locally
 
-Requirements: Node.js 22.18+ (Node 24 recommended), npm, and a modern desktop browser. Dependencies are already installed in this checkout.
+Use Node.js 22.18+ (Node 24 recommended), npm and a modern desktop browser.
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
-Open the address printed in the terminal (normally http://127.0.0.1:5173). Select a fighter, rival and difficulty, then **Enter the circuit**. On later visits, run only `npm run dev` from the project folder. Leave the terminal running; Ctrl+C stops it. Do not double-click index.html.
+Open the address printed in the terminal, normally http://127.0.0.1:5173. Leave the terminal running; Ctrl+C stops it. Do not double-click index.html.
+
+Start with **Practice lab** to learn movement or choose **Fighters → Try** to test any locked pilot for free. **Ranked circuit** selects an Expert CPU rival appropriate to your rank, level and fighter tier. **Boss contracts** unlock as you level up.
 
 ## Controls
 
 | Key | Action |
 | --- | --- |
-| 1 | Fighter’s light attack |
-| 2 | Fighter’s heavy attack |
-| 3 | Block |
-| 4 | Dodge |
-| 5 | Fighter’s grab |
-| 6 | Recover |
-| 7 | Fighter’s signature move |
-| Q | Advance one range band |
-| E | Retreat one range band |
-| H | Open/close field manual |
-| Esc | Close field manual |
-| R | Rematch during combat or after a result |
+| A / D or Left / Right | Run and steer in the air |
+| Space / W / Up | Jump and double-jump; release early for a short hop |
+| S / Down | Fast-fall; drop through thin platforms |
+| J | Three-strike chain; usable in the air |
+| Down + J in the air | Character-specific stun aerial |
+| A/D + W/S + J | Directional attacks; bows and discs aim diagonally |
+| Hold / release K | Charge and fire a signature special |
+| W + K, release K | Rising recovery, once per airtime |
+| L | Tap at impact to parry; hold to shield |
+| Shift | Dodge at a shield cost |
+| Hold / release I | Charge and fire an ultimate at full meter |
+| E | Pick up the nearest eligible weapon or gadget |
+| Esc / P | Pause / resume |
 
-All moves also have mouse buttons. **Change fighters** or the logo opens the roster. Sound starts off; toggle it in the header. **Reduce motion** disables idle movement, lunges, particles and camera shake, and removes CSS transitions. It also respects the system’s reduced-motion setting at startup. Preferences are session-only.
+Keyboard is recommended for simultaneous controls. On-screen buttons also support mouse holds. Losing focus pauses the match. Sound effects and music start off; enable them in Settings. Reduced motion honors the OS preference and suppresses cosmetic shake and animation.
 
-## The roster
+The first **155 ms** of L parries frontal attacks. Projectile parries reflect ownership. Ultimates bypass a held shield but can be parried; their lingering hitboxes can strike each target **at most twice**, 160 ms apart. Damage % increases knockback, rather than representing remaining health.
 
-- **Vector / The Live Wire:** 100 health, 100 stamina. Fast pressure; Flash step closes distance before attacking.
-- **Rook / The Immovable:** 120 health, 90 stamina. Powerful close-range grab; Fault line pushes rivals away on unguarded hits.
-- **Nyx / The Afterimage:** 90 health, 110 stamina. Fast Mid-range light; Prism lance reaches Mid/Far. Close range is her weakness.
+## Pilots and progression
 
-The action cards show the actual damage, speed, reach, cost and cooldown for your selected fighter. Both signature cooldowns are public in the HUD. Opponents have distinct pressure/grappler/zoner personalities. Rookie, Standard and Expert change adaptation strength, not stats or secret knowledge.
+| Pilot | Lumens | Role | Signature weapons |
+| --- | ---: | --- | --- |
+| Vector | Starter | Fast rushdown | Helio sabre / Arc talons |
+| Rook | 2,500 | Heavy launch power | Canopy maul / Root pike |
+| Nyx | 6,500 | Ranged control | Prism bow / Crescent mirror |
+| Ember | 12,000 | Aerial pressure | Flare claws / Meteor cleaver |
+| Solis | 22,000 | Heavy solar control | Corona aegis / Dawn hammer |
+| Astra | 40,000 | Fast advanced duelist | Orbit lance / Sunstring |
 
-## How the reads work
+Start with Vector and 1,000 Lumens. Ranked wins grant currency, XP and rank points; stronger opponents pay more, with a capped streak bonus. Ranked losses grant 35 XP and no currency. Every 250 XP advances a level, up to level 50. Higher-priced fighters offer stronger stats or expanded tools, while ranked opponents also advance with your selected tier.
 
-CPU commits before player input. Q/E movement and Vector’s step combine before range is checked. Opposing steps cancel; matching steps stack. Faster in-range attacks interrupt slower ones; equal speeds trade. Block spends guard stamina when hit, dodge avoids strikes, grab catches defense at Close, and recovery exposes you to 40% extra damage. At zero health the match ends; double knockouts draw. There is no timer, passive regeneration or persistent progression.
+| Boss | Unlock level | One-time bounty | XP |
+| --- | ---: | ---: | ---: |
+| Verdant Warden | 2 | 5,000 | 400 |
+| Vesper | 5 | 14,000 | 650 |
+| Heliarch | 9 | 42,000 | 1,100 |
+| Eclipse | 14 | 120,000 | 1,800 |
 
-## Development and release
+Bosses are never playable. They enter armed, scale with your level and awaken a second phase with a new weapon. You have three stocks; bosses have two reinforced stocks. Losses can be retried. A victory permanently clears that contract and awards its bounty once per profile.
+
+Progress auto-saves in this browser at this address. **Profile → Export save** creates a portable JSON backup. Import validates a save and asks before replacing your profile. Clearing browser data removes the local save unless you have a backup. This is an offline CPU ladder, with no online leaderboard, account or server verification.
+
+## Living arenas
+
+- **Solstice Gardens:** a sunlit floating city, waterfalls and drifting garden platforms.
+- **Helios Foundry:** an orbital solar forge with a rising central platform.
+- **Aurora Spires:** floating islands and a moving bridge across a wide gap.
+
+Each match starts with a three-second robot deployment. Each playable fighter's two signature weapons arrive at **5, 15, 25… seconds**. Shared weapons and rotating gadgets arrive at **10, 20, 30… seconds**. Gadgets repair damage, charge meter, restore shields or refresh aerial recovery. E equips nearby eligible gear; opponents cannot take your signature drops. Bosses receive no signature delivery drones.
+
+Red warnings precede optional falling solar spears. Results show both portraits, total damage dealt/received across all stocks, ring-outs, hits, parries, best combos and progression rewards.
+
+## Development
 
 ```sh
-npm test            # 17 deterministic rule/regression tests
-npm run typecheck   # Strict TypeScript validation
-npm run balance     # Reproducible 900-match CPU balance sweep
-npm run build       # Typecheck and build dist/
-npm run preview     # Play the production build locally
+npm test            # 40 regression tests
+npm run typecheck   # Strict TypeScript
+npm run balance     # 108 seeded CPU matchups
+npm run build       # Production dist/
+npm run preview     # Production preview, normally port 4173
 npm run package     # Tests + build + framebreak-itch.zip
 ```
 
-The packager uses Node’s built-in modules and overwrites the previous ZIP, preventing stale assets. No lint framework is installed; TypeScript and combat tests are the required checks. `npm ci` installs the exact versions in package-lock.json.
+The build bundles its artwork and runtime assets locally. No CDN, external fonts, API keys or game server is required. Vite reports a non-fatal Phaser bundle-size warning.
 
-## Project map
+- `src/game/simulation.ts`: fixed-step rules, physics, equipment and results.
+- `src/game/cpu.ts`: visible-state CPU spacing, defense, edgeguards and recovery.
+- `src/game/progression.ts`: profile validation, purchases and reward settlement.
+- `src/game/data.ts`, `equipment.ts`: roster, bosses, stages and weapon tuning.
+- `src/scenes/`: articulated fighter rigs, moving arenas and effects.
+- `src/main.ts`, `style.css`, `solstice.css`: hub, shop, HUD and dialogs.
+- `public/art/`: generated environment and portrait atlases.
+- `tests/`: combat, progression, save and boss regressions.
 
-- `src/game/data.ts`: fighter/move data, controls, types and tuning.
-- `src/game/combat.ts`: pure simultaneous resolver, range/cost checks, cooldowns and CPU.
-- `src/game/audio.ts`: original optional synthesized sound effects.
-- `src/scenes/Arena.ts`: original procedural neon skyline, fighters and effects.
-- `src/ui/portraits.ts`: original inline SVG portraits.
-- `src/main.ts`: roster, HUD, action input, reveal pacing, results and accessibility controls.
-- `src/style.css`: responsive interface and visual theme.
-- `tests/combat.test.ts`: exhaustive combinations, symmetry, resources, movement, signatures, AI and seeded matches.
-- `scripts/simulate.ts`: deterministic balance observations.
-- `scripts/package.mjs`: dependency-free production ZIP writer.
-- `GAME_DESIGN.md`: complete implemented rules and balance notes.
-- `DEVELOPMENT_LOG.md`: milestones, decisions, verification and limitations.
-- `ASSET_LICENSES.md`: provenance and runtime license handling.
-- `ITCH_PUBLISHING.md`: manual upload instructions.
+See [implemented design](GAME_DESIGN.md), [art provenance and generation briefs](ASSET_LICENSES.md), [development log](DEVELOPMENT_LOG.md) and [itch.io packaging notes](ITCH_PUBLISHING.md).
 
-## Release scope
+## Current limits
 
-V1.0 is the Neon Circuit single-player duel release: three fighters, one original arena, nine actions per fighter, three CPU levels, optional effects audio, roster/results/help and mouse/keyboard controls. No accounts, multiplayer, campaigns, saves or monetization. Nothing has been published externally. The build is self-contained with no CDN, external fonts, network services or runtime downloads. Build output, dependencies and ZIP archives are ignored by Git.
+Desktop keyboard/mouse, one player versus CPU. No gamepad support or multiplayer. Painted portraits and scenery complement procedural animated combat rigs; this is a 2D game. CPU simulations verify stability, not human competitive balance. Progression pricing, Ember's CPU performance, recoveries and parry timing need real-player tuning. Safari, Firefox and the hosted itch.io iframe have not been verified. The original turn-based prototype is preserved at Git tag `v1.0.0`.

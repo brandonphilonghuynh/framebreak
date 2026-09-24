@@ -1,5 +1,19 @@
 # Development log
 
+## 2026-09-23 — Solstice Circuit 5.0 release
+
+Replaced the real-time prototype's neon interface with a solar-future hub and three garden/solar arenas. Added six illustrated pilot portraits, four non-playable boss portraits, distinct animated combat rigs, two new playable pilots, a Lumens shop, ranked CPU progression, level-scaled boss contracts, local auto-save and portable JSON backups. Boss rewards are permanent one-time claims; losses allow retries.
+
+Every map now has a moving platform. Playable fighters arrive by robot during a three-second countdown, receive two signature weapon choices at 5 seconds and every 10 seconds thereafter, and can collect shared supplies every 10 seconds. Bosses enter armed and switch weapons in an awakened phase. Added repair/meter/shield/recovery gadgets, warning-marked falling solar spears, and per-combatant total damage and combo statistics across stocks. Ultimate hitboxes are capped at two hits per target with a timed interval; down-air stun grace prevents repeated full stun locks.
+
+Browser testing found and fixed a blank WebGL arena caused by initializing Phaser inside a zero-sized hidden parent. The hidden arena now remains measurable while inaccessible to pointer and accessibility navigation. Also fixed match-entry scroll position, locked practice trials changing the selected owned pilot, displayed rank losses exceeding the zero-floor deduction, and boss regeneration incorrectly reverting an awakened phase.
+
+Validation: 40 tests pass; strict TypeScript and production packaging pass; all eight ZIP entries verify. The 108-match seeded CPU sweep completes with no timeouts and a 38-second mean. Wins including mirrors: Vector 20, Rook 17, Nyx 24, Ember 8, Solis 22, Astra 17. This is stability evidence, not a human balance claim; Ember CPU tuning and late-game prices remain feedback priorities.
+
+In-app browser checks cover hub and boss contract rendering, free Solis trial, all three arena backdrops, visible combat rigs/drones/supplies, weapon pickup, ultimate button input, manual pause/resume, a complete ranked defeat with both damage totals, saved XP after reload and returning to the owned pilot. No console warnings or errors appeared in these checked flows. Purchase/claim idempotence and save validation are verified by automated tests; hosted itch.io, Safari/Firefox and import/export through a hosted iframe remain unverified.
+
+Original generated artwork is bundled in public/art; built-in generation mode and prompt briefs are recorded in ASSET_LICENSES.md. No new runtime dependency was added. A one-time Prettier pass made the expanded source readable without adding a project dependency. The upload ZIP is approximately 12 MB. Itch.io publication has not been performed.
+
 ## 2026-09-23 — Version 0.1
 
 ### Completed
@@ -81,3 +95,9 @@ The first 900-match CPU sweep showed Nyx winning only about 20–30% against oth
 Human playtesting is still needed, especially Needle ray’s Mid pressure, repeated defense and recovering at Far. Browser checks use the available Chromium-based environment; Safari/Firefox and the actual hosted itch.io iframe need release-owner testing. Desktop is the supported target. Short displays scroll. Audio is effects-only, with no music; preferences are session-only. No external account access or publishing occurred. The next milestone should be tuning from human matches before expanding feature scope.
 
 Final release checks: browser victory after 14 exchanges and defeat after 8; rejected unaffordable keyboard light at 2 stamina without advancing the turn. The final rebuilt bundle displays both signature states and correctly cancels a pending signature reveal on R restart, then resolves only the new match’s first exchange. No console warnings/errors in that session. `npm run package` completed; `unzip -t framebreak-itch.zip` passed all four entries. Development server still serves HTTP 200. Git diff whitespace check passed.
+
+## 2026-09-23 — v5.0 combat depth pass
+
+Added directional aerial attacks: movement aims air J attacks, and Down + J gives every fighter a distinct downward aerial hitbox with a reliable stun window. Added explicit per-target ultimate re-hit cooldowns, allowing lingering ultimate hitboxes to strike a fighter twice when they remain caught inside while preserving projectile parry reflection.
+
+The CPU now edgeguards offstage opponents with directional aerials, selects down-air against targets below, steers toward the stage during hitstun (directional influence), fast-falls out of launches and maintains stage-aware recovery. New deterministic tests cover all four down-airs, diagonal aim, ultimate double hits and the previous parry/charge interactions. This is a competitive behavior pass, not a claim that heuristics replace human tournament play.
