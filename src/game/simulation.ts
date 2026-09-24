@@ -293,7 +293,7 @@ export function createWorld(config: Config): WorldState {
     supplyWave: 0,
     bossPhase: 1,
   };
-  if (config.mode === "boss") w.fighters[1].stocks = 2;
+  if (config.mode === "boss") w.fighters[1].stocks = COMBAT.bossStocks;
   if (config.mode === "training") w.fighters[0].meter = COMBAT.ultimateCost;
   return w;
 }
@@ -331,9 +331,9 @@ function spawn(w: WorldState, f: Fighter, properties: Partial<Attack>) {
     (w.config.mode === "boss" || w.config.mode === "ranked")
   ) {
     const scale =
-      1 +
+      (w.config.mode === "boss" ? COMBAT.bossDamageMultiplier : 1) +
       Math.min(
-        w.config.mode === "boss" ? 0.65 : 0.3,
+        w.config.mode === "boss" ? 0.75 : 0.3,
         Math.max(0, (w.config.opponentLevel ?? 1) - 1) *
           (w.config.mode === "boss" ? 0.018 : 0.006),
       );
@@ -728,6 +728,9 @@ function launch(w: WorldState, target: Fighter, attack: Attack) {
   const damage =
     attack.damage *
     physique(target.id).damageTaken *
+    (w.config.mode === "boss" && target.side === 1
+      ? COMBAT.bossDamageTaken
+      : 1) *
     (armored ? 0.7 : inEclipse ? 0.8 : 1) *
     falloff;
   target.damage = clamp(target.damage + damage, 0, 999);
@@ -740,6 +743,9 @@ function launch(w: WorldState, target: Fighter, attack: Attack) {
     (attack.force *
       falloff *
       (inEclipse ? 0.85 : 1) *
+      (w.config.mode === "boss" && target.side === 1
+        ? COMBAT.bossKnockbackTaken
+        : 1) *
       (1 + target.damage / 100)) /
     FIGHTERS[target.id].weight;
   const direction = attack.projectile
@@ -1072,7 +1078,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
   );
   if (w.config.mode === "boss") {
     const boss = w.fighters[1];
-    if (boss.stocks < 2 || boss.damage > 85) w.bossPhase = 2;
+    if (boss.damage > COMBAT.bossAwakenDamage) w.bossPhase = 2;
     boss.meter = Math.min(
       COMBAT.ultimateCost,
       boss.meter +
@@ -1082,7 +1088,10 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
             : COMBAT.bossMeterPerSecond),
     );
     if (w.bossPhase === 2 && (boss.id === "warden" || boss.id === "eclipse"))
-      boss.damage = Math.max(0, boss.damage - dt * 1.5);
+      boss.damage = Math.max(
+        0,
+        boss.damage - dt * COMBAT.awakenedRegeneration,
+      );
     boss.weapon = SIGNATURES[boss.id][w.bossPhase === 2 ? 1 : 0].id;
   }
   w.fighters.forEach((f, i) => {
@@ -1160,7 +1169,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
         const speed =
           def.speed *
           (f.grounded ? 1 : body.airSpeed) *
-          (isBoss(f.id) && w.bossPhase === 2 ? 1.13 : 1) *
+          (isBoss(f.id) && w.bossPhase === 2 ? COMBAT.awakenedSpeed : 1) *
           (f.charge
             ? 0.32
             : f.ability
@@ -1576,6 +1585,7 @@ export function tick(w: WorldState, inputs: [Input, Input], dt = 1 / 60): void {
     if (w.fighters.every((f) => f.stocks === 0)) finish(w, "draw");
     else if (w.fighters[0].stocks === 0) finish(w, 1);
     else if (w.fighters[1].stocks === 0) finish(w, 0);
+    else if (w.remaining === 0 && w.config.mode === "boss") finish(w, 1);
     else if (w.remaining === 0) {
       const [a, b] = w.fighters;
       finish(

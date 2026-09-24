@@ -4,7 +4,7 @@ The game is now a real-time, solar-themed platform fighter with persistent local
 
 ## Match loop
 
-Quick play and ranked duels give both pilots three stocks and 180 simulation seconds. Bosses have two reinforced stocks against the player's three. Practice has unlimited respawns and starts with full ultimate meter; continuous refilling is explicitly opt-in. At timeout, most stocks wins, then lower damage; exact ties draw. Quick play and practice award no progression rewards.
+Quick play and ranked duels give both pilots three stocks and 180 simulation seconds. A boss contract gives the player three stocks against one heavily reinforced boss life. The player must ring out the boss before time expires; a boss-contract timeout is a loss. Practice has unlimited respawns and starts with full ultimate meter; continuous refilling is explicitly opt-in. Duel timeouts use most stocks, then lower damage; exact ties draw. Quick play and practice award no progression rewards.
 
 A three-second deployment freezes physics, attacks, clocks and deliveries. Robots lower playable fighters into the arena; bosses enter with their own equipment.
 

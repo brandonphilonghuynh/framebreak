@@ -117,8 +117,8 @@ test("bosses are not playable, start armed, change weapons in phase two and rece
     assert.ok(!FIGHTER_IDS.includes(id as never));
     const w = createWorld({ ...base, mode: "boss", cpu: id, equipment: true });
     assert.equal(w.fighters[1].weapon, SIGNATURES[id][0].id);
-    assert.equal(w.fighters[1].stocks, 2);
-    w.fighters[1].damage = 90;
+    assert.equal(w.fighters[1].stocks, 1);
+    w.fighters[1].damage = 51;
     steps(w, 1);
     assert.equal(w.bossPhase, 2);
     assert.equal(w.fighters[1].weapon, SIGNATURES[id][1].id);
@@ -360,11 +360,39 @@ test("all four armed bosses complete a deterministic fight with finite state", (
 
 test("an awakened boss remains in phase two after healing below the threshold", () => {
   const w = createWorld({ ...base, mode: "boss", cpu: "warden" });
-  w.fighters[1].damage = 86;
+  w.fighters[1].damage = 51;
   steps(w, 1);
   assert.equal(w.bossPhase, 2);
   w.fighters[1].damage = 40;
   steps(w, 1);
   assert.equal(w.bossPhase, 2);
   assert.equal(w.fighters[1].weapon, SIGNATURES.warden[1].id);
+});
+
+test("one boss ring-out ends the contract and a timeout belongs to the boss", () => {
+  const ko = createWorld({ ...base, mode: "boss", cpu: "warden" });
+  ko.fighters[1].x = 2000;
+  steps(ko, 1);
+  assert.equal(ko.fighters[1].stocks, 0);
+  assert.equal(ko.winner, 0);
+
+  const timeout = createWorld({ ...base, mode: "boss", cpu: "warden" });
+  timeout.remaining = 1 / 60;
+  steps(timeout, 1);
+  assert.equal(timeout.winner, 1);
+});
+
+test("a boss life resists damage and launch while its attacks hit harder", () => {
+  const boss = createWorld({ ...base, mode: "boss", cpu: "warden" });
+  const hit = strike(boss, { damage: 20, force: 300, vertical: 0 });
+  applyAttack(boss, { ...hit, hit: [] }, boss.fighters[1]);
+  assert.ok(boss.fighters[1].damage <= 11.01);
+  assert.ok(
+    Math.abs(boss.fighters[1].vx) < 300 / FIGHTERS.warden.weight,
+  );
+
+  boss.fighters[1].attackCooldown = 0;
+  steps(boss, 1, {});
+  tick(boss, [neutralInput(), { ...neutralInput(), attack: true }]);
+  assert.ok(boss.attacks.some((attack) => attack.damage > FIGHTERS.warden.damage));
 });

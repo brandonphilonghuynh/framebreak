@@ -65,7 +65,7 @@ Start with Vector and 1,000 Lumens. Ranked wins grant currency, XP and rank poin
 | Heliarch       |            9 |          42,000 | 1,100 |
 | Eclipse        |           14 |         120,000 | 1,800 |
 
-Bosses are never playable. They enter armed, scale with your level and awaken a second phase with a new weapon. You have three stocks; bosses have two reinforced stocks. Losses can be retried. A victory permanently clears that contract and awards its bounty once per profile.
+Bosses are never playable. They enter armed, scale with your level and awaken a faster second phase with a new weapon. You have three stocks; each boss has one heavily reinforced life with strong damage and launch resistance. Ring it out once before time expires to win. Losses can be retried. A victory permanently clears that contract and awards its bounty once per profile.
 
 Progress auto-saves in this browser at this address. **Profile → Export save** creates a portable JSON backup. Import validates a save and asks before replacing your profile. Clearing browser data removes the local save unless you have a backup. This is an offline CPU ladder, with no online leaderboard, account or server verification. Practice starts with normal meter pacing; **Unlimited ultimate meter** is an explicit Flight check option.
 
